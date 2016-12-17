@@ -28,17 +28,17 @@ moveRight (Tape l (x:xs)) = Tape (x:l) xs
 moveRight (Tape _ []) = error "Tape already at right."
 
 moveRightBy :: Tape a -> Int -> Tape a
-moveRightBy tape dist = foldl' (\t _ -> moveRight t) tape ([1..dist] :: [Int])
+moveRightBy tape dist = foldl' (\t _ -> moveRight t) tape [1..dist]
 
 moveLeft :: Tape a -> Tape a
 moveLeft (Tape (x:xs) r) = Tape xs (x:r)
 moveLeft (Tape [] _) = error "Tape already at left."
 
 moveRightMatching :: (Eq a) => [a] -> Tape a -> Tape a
-moveRightMatching [] a = a
 moveRightMatching (x:xs) t@(Tape _ (a:_))
   | x == a = moveRightMatching xs $ moveRight t
   | otherwise = t
+moveRightMatching _ a = a
 
 tapeHead :: Tape a -> [a]
 tapeHead (Tape _ r) = r
@@ -52,4 +52,4 @@ insertHead a (Tape l r) = Tape l (a ++ r)
 
 -- Place list onto tape, leaving head just past last element
 appendHead :: [a] -> Tape a -> Tape a
-appendHead list (Tape left right) = Tape (foldr (\x ts -> x : ts) left list) right
+appendHead list (Tape l r) = Tape (foldr (\x ts -> x : ts) l list) r

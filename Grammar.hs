@@ -5,7 +5,6 @@ import Tape
 import Data.Char
 import Data.List
 import qualified Data.Map as Map
-import Data.String.Utils
 
 metagrammar :: String -> Metagrammar Char
 metagrammar toIgnore = Metagrammar
@@ -13,7 +12,9 @@ metagrammar toIgnore = Metagrammar
   (\a -> a `elem` ")]")
   (\a b -> case a of
       '(' -> b == ')'
-      '[' -> b == ']')
+      '[' -> b == ']'
+      _   -> False
+  )
   (\a -> isSpace a)
   (\a -> a `elem` toIgnore)
   (\a -> a == '*')
@@ -52,14 +53,14 @@ produce g@(Grammar meta _) tapeIn tapeOut =
                   let newOut = applyRule rule tapeIn tapeOut
                   in
                     produce g (moveRightBy tapeIn (length matched)) newOut
-                Nothing -> error "This shouldn't happen."
+                Nothing -> produce g (moveRight tapeIn) tapeOut
             Nothing -> tapeOut
 
 lookupRule :: (Eq a, Ord a) => Tape a -> Grammar a -> Maybe ([a], Maybe (LRule a))
 lookupRule tape (Grammar _ rules) =
   case matchLongestPrefix tape $ Map.keys rules of
     Nothing -> Nothing
-    Just pred -> Just (pred, Map.lookup pred rules)
+    Just matched -> Just (matched, Map.lookup matched rules)
 
 matchLongestPrefix :: Eq a => Tape a -> [[a]] -> Maybe [a]
 matchLongestPrefix tape prefixes =

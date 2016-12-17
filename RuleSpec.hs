@@ -3,6 +3,7 @@ import Tape
 import Data.List
 
 parseRuleSpec :: Metagrammar Char -> [Char] -> RuleSpec Char
+-- TODO Implement this
 parseRuleSpec meta specStr =
   RuleSpec "" "" "" meta
 
