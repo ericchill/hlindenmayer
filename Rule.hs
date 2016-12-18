@@ -1,5 +1,5 @@
 module Rule (
-  LRule(..),
+  LRule,
   makeRule,
   applyRule,
   addSuccessor,
@@ -24,7 +24,7 @@ applyRule (LRule rules) tapeIn tapeOut =
   in
     appendHead (head productions) tapeOut  -- later pick one randomly
 
-addSuccessor :: Eq a => (RuleSpec a, [a]) -> LRule a -> LRule a
+addSuccessor :: (Eq a, Show a) => (RuleSpec a, [a]) -> LRule a -> LRule a
 addSuccessor (spec, prod) (LRule rules) =
   case lookup spec rules of
     Just productions -> LRule $ insert spec (prod:productions) rules

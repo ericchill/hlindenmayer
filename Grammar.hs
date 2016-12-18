@@ -11,7 +11,7 @@ import Rule
 import Data.List (isPrefixOf, sortBy)
 import qualified Data.Map as Map
 
-data Grammar a = Grammar (Metagrammar a) (Map.Map [a] (LRule a))
+data Grammar a = Grammar (Metagrammar a) (Map.Map [a] (LRule a)) deriving (Show)
 
 getMetagrammar :: Grammar a -> Metagrammar a
 getMetagrammar (Grammar meta _) = meta
@@ -19,15 +19,16 @@ getMetagrammar (Grammar meta _) = meta
 setMetagrammar :: Metagrammar a -> Grammar a -> Grammar a
 setMetagrammar meta (Grammar _ rules) = Grammar meta rules
 
-addRuleFromSpec :: Ord a => (RuleSpec a, [a]) -> Grammar a -> Grammar a
+addRuleFromSpec :: (Ord a, Show a) => (RuleSpec a, [a]) -> Grammar a -> Grammar a
 addRuleFromSpec newRule (Grammar meta rules) =
-  let rule@(s@(RuleSpec _ p _ _), production) = newRule
+  let rule@(spec, production) = newRule
+      pred = headCond spec
   in
-    case Map.lookup p rules of
-      Nothing -> Grammar meta (Map.insert p (makeRule s production) rules)
+    case Map.lookup pred rules of
+      Nothing -> Grammar meta (Map.insert pred (makeRule spec production) rules)
       Just aRule ->
-        Grammar meta (Map.insert p (addSuccessor rule aRule) rules)
-
+        Grammar meta $ Map.insert pred (addSuccessor rule aRule) rules
+  
 produce :: (Eq a, Ord a) => Grammar a -> Tape a -> Tape a -> Tape a
 produce g@(Grammar meta _) tapeIn tapeOut =
   case tapeHead tapeIn of
@@ -55,8 +56,8 @@ lookupRule tape (Grammar _ rules) =
 matchLongestPrefix :: Eq a => Tape a -> [[a]] -> Maybe [a]
 matchLongestPrefix tape prefixes =
   case
-       filter (\a -> a `isPrefixOf` (tapeHead tape)) $
-       sortBy (\a b -> (length b) `compare` (length a)) prefixes  -- TODO Cache this
+       filter (\a -> a `isPrefixOf` tapeHead tape) $
+       sortBy (\a b -> length b `compare` length a) prefixes  -- TODO Cache this
   of
     [] -> Nothing
-    x  -> Just $ (head . reverse) x
+    x  -> Just $ last x

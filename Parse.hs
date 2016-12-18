@@ -10,35 +10,32 @@ import RuleSpec
 import Prelude hiding (null)
 --import Control.Monad
 import Data.Char (isSpace)
-import Data.List (foldl', isPrefixOf, stripPrefix)
+import Data.List (foldl', isPrefixOf, null, stripPrefix)
 import Data.Maybe (fromJust)
 import Data.String.Utils
 import Data.Map.Strict (Map, empty, insert)
 
 {-
   rule
-    | expr < token > expr --> production
-    | expr < token        --> production
-    | token > expr        --> production
-    | token               --> production
-  expr
+    | [stuff <] word [> stuff] --> words
+  stuff
     | *
-    | [token]
+    | words
 -}
 
 metagrammar :: String -> Metagrammar Char
 metagrammar toIgnore = Metagrammar
-  (\a -> a `elem` "([")
-  (\a -> a `elem` ")]")
+  (`elem` "([")
+  (`elem` ")]")
   (\a b -> case a of
       '(' -> b == ')'
       '[' -> b == ']'
       _   -> False
   )
-  (\a -> isSpace a)
-  (\a -> a `elem` toIgnore)
-  (\a -> a == '*')
-  (\a -> a == '%')
+  isSpace
+  (`elem` toIgnore)
+  (== '*')
+  (== '%')
   "()[]*"
 
 newGrammar :: Metagrammar Char -> Grammar Char
@@ -49,7 +46,11 @@ data LSystem a = LSystem {
   macros      :: Map [a] [a],
   grammar     :: Grammar a,
   axiom       :: [a]
-  }
+  } deriving (Show)
+
+parseRuleFile :: String -> LSystem Char
+parseRuleFile text =
+  foldl' addLineToSystem emptySystem $ filterComments $ lines text
 
 addOption :: Ord a => [a] -> [a] -> LSystem a -> LSystem a
 addOption k v (LSystem o m g a) = LSystem (insert k v o) m g a
@@ -66,11 +67,7 @@ setGrammar a (LSystem opt mac _ ax) = LSystem opt mac a ax
 emptySystem :: LSystem Char
 emptySystem = LSystem empty empty (newGrammar $ metagrammar "") ""
 
-parseRuleFile :: [Char] -> LSystem Char
-parseRuleFile text =
-  foldl' (\sys line -> addLineToSystem line sys) emptySystem $ filterComments $ lines text
-
-filterComments :: [[Char]] -> [[Char]]
+filterComments :: [String] -> [String]
 filterComments ls =
   fst $ foldr (\l (res, incomment) ->
                  if incomment then
@@ -78,24 +75,23 @@ filterComments ls =
                  else
                    if "-}" `isPrefixOf` l then (res, True) else (l : res, False)
               ) ([], False) $
-  filter (\l@(x:_) -> (x /= '.') && (not $ "--" `isPrefixOf` l)) $ map strip ls
+  filter (\l@(x:_) -> (x /= '.') && not ("--" `isPrefixOf` l)) $
+  filter (not.null) $ map strip ls
 
-addLineToSystem :: [Char] -> LSystem Char -> LSystem Char
-addLineToSystem [] sys = sys
-addLineToSystem line sys
+addLineToSystem :: LSystem Char -> String -> LSystem Char
+addLineToSystem sys [] = sys
+addLineToSystem sys line
   | ':' `elem` line = addParam line sys
   | otherwise       = addRule line sys
 
-addParam :: [Char] -> LSystem Char -> LSystem Char
+addParam :: String -> LSystem Char -> LSystem Char
 addParam line sys
   | "axoim:" `isPrefixOf` line =
     setAxiom (cleanArgument "axoim:" line) sys
   | "define:" `isPrefixOf` line =
-    let arg = cleanArgument "define:" line
-        (name, def) = span (\c -> not $ isSpace c) arg
-        cleanDef = strip def
+    let (name, def) = break isSpace $ cleanArgument "define:" line
     in
-      addMacro name cleanDef sys
+      addMacro name (strip def) sys
   | "delta:" `isPrefixOf` line =
     addOption "delta" (cleanArgument "delta:" line) sys
   | "ignore:" `isPrefixOf` line =
@@ -106,37 +102,37 @@ addParam line sys
     addOption "stepRatio" (cleanArgument "stepRatio:" line) sys
   | otherwise = sys
 
-cleanArgument :: [Char] -> [Char] -> [Char]
+cleanArgument :: String -> String -> String
 cleanArgument argName str = strip $ fromJust $ stripPrefix argName str
 
-setIgnore :: [Char] -> LSystem Char -> LSystem Char
+setIgnore :: String -> LSystem Char -> LSystem Char
 setIgnore toIgnore sys =
   setGrammar (setMetagrammar (metagrammar toIgnore) $ grammar sys) sys
 
-addRule :: [Char] -> LSystem Char -> LSystem Char
+addRule :: String -> LSystem Char -> LSystem Char
 addRule line sys =
   case parseRule (getMetagrammar $ grammar sys) line of
     Just specAndProd -> setGrammar (addRuleFromSpec specAndProd $ grammar sys) sys
     Nothing -> sys
 
-parseRule :: Metagrammar Char -> [Char] -> Maybe (RuleSpec Char, [Char])
+parseRule :: Metagrammar Char -> String -> Maybe (RuleSpec Char, String)
 parseRule meta input
   | length sides == 2 =
-    if length specStr == 0 then Nothing
+    if null specStr then Nothing
     else Just (parseRuleSpec meta specStr, strip prodStr)
   | otherwise = Nothing
   where sides = split "-->" input
-        specStr = sides !! 0
+        specStr = head sides
         prodStr = sides !! 1
 
-parseRuleSpec :: Metagrammar Char -> [Char] -> RuleSpec Char
+parseRuleSpec :: Metagrammar Char -> String -> RuleSpec Char
 parseRuleSpec meta [] = error "Empty RuleSpec string."
 parseRuleSpec meta str
   | 2 == length pieces = parseRuleSpec2 meta (head pieces) $ pieces !! 1
   | otherwise          = parseRuleSpec2 meta "*" $ head pieces
-  where pieces = split "<" str
+  where pieces = map strip $ split "<" str
 
-parseRuleSpec2 :: Metagrammar Char -> [Char] -> [Char] -> RuleSpec Char
+parseRuleSpec2 :: Metagrammar Char -> String -> String -> RuleSpec Char
 parseRuleSpec2 meta _ [] = error "No RuleSpec after left constraint"
 parseRuleSpec2 meta left str
   | 2 == length pieces = case head pieces of
@@ -145,4 +141,4 @@ parseRuleSpec2 meta left str
         [""]    -> error "Empty right constraint in RuleSpec."
         right   -> RuleSpec meta left center $ head right
   | otherwise = RuleSpec meta left str "*"
-  where pieces = split ">" str
+  where pieces = map strip $ split ">" str
