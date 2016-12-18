@@ -30,22 +30,29 @@ addRuleFromSpec newRule (Grammar meta rules) =
         Grammar meta $ Map.insert pred (addSuccessor rule aRule) rules
   
 produce :: (Eq a, Ord a) => Grammar a -> Tape a -> Tape a -> Tape a
-produce g@(Grammar meta _) tapeIn tapeOut =
-  case tapeHead tapeIn of
-    []      -> tapeOut
-    (x:_)
-      | isSkipBalanced meta x -> produce g (moveRight $ skipRight meta tapeIn) tapeOut
-      | isBlank meta x -> produce g (moveRight tapeIn) tapeOut
-      | otherwise ->
-          case lookupRule tapeIn g of
-            Just (matched, mrule) ->
-              case mrule of
-                Just rule ->
-                  let newOut = applyRule rule tapeIn tapeOut
-                  in
-                    produce g (moveRightBy tapeIn (length matched)) newOut
-                Nothing -> produce g (moveRight tapeIn) tapeOut
-            Nothing -> tapeOut
+produce g tapeIn tapeOut
+  | atEnd tapeIn = tapeOut
+  | otherwise =
+    let (nextIn, prod) = produceOne g tapeIn in
+      produce g nextIn (appendHead (head prod) tapeOut) -- Just pick first possibility.
+    
+produceOne :: (Eq a, Ord a) => Grammar a -> Tape a -> (Tape a, [[a]])
+produceOne g@(Grammar meta _) tapeIn =
+  let eatInput = (moveRight tapeIn, [[]]) in
+    case tapeHead tapeIn of
+      [] -> (tapeIn, [])
+      (x:_)
+        | isSkipBalanced meta x -> (moveRight $ skipRight meta tapeIn, [])
+        | isBlank meta x -> eatInput
+        | otherwise ->
+            case lookupRule tapeIn g of
+              Just (matched, mrule) ->
+                case mrule of
+                  Just rule ->
+                    (moveRightBy tapeIn (length matched),
+                     applyRule rule tapeIn)
+                  Nothing -> eatInput
+              Nothing -> eatInput
 
 lookupRule :: (Eq a, Ord a) => Tape a -> Grammar a -> Maybe ([a], Maybe (LRule a))
 lookupRule tape (Grammar _ rules) =

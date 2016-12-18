@@ -24,9 +24,8 @@ instance Eq a => Eq (Metagrammar a) where
   a == b = rsSig a == rsSig b
 
 instance Show a => Show (Metagrammar a) where
-  show a = "(Metagrammar \"" ++ show (rsSig a) ++ "\")"
+  show a = "(Metagrammar " ++ show (rsSig a) ++ ")"
 
--- Call this with the match string reversed
 lcondiff :: Eq a => Metagrammar a -> [a] -> Tape a -> Bool
 lcondiff _ [] _ = True
 lcondiff meta s@(x:xs) tape

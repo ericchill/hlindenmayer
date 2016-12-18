@@ -17,12 +17,11 @@ data LRule a = LRule (Map (RuleSpec a) [[a]]) deriving (Eq, Show)
 makeRule :: RuleSpec a -> [a] -> LRule a
 makeRule spec production = LRule $ singleton spec [production]
 
-applyRule :: Eq a => LRule a -> Tape a -> Tape a -> Tape a
-applyRule (LRule rules) tapeIn tapeOut =
-  let matches = filterWithKey (\spec _ -> matchSpec spec tapeIn) rules
-      (_, productions) = findMax matches
+applyRule :: Eq a => LRule a -> Tape a -> [[a]]
+applyRule (LRule rules) tape =
+  let matches = filterWithKey (\spec _ -> matchSpec spec tape) rules
   in
-    appendHead (head productions) tapeOut  -- later pick one randomly
+   snd $ findMax matches
 
 addSuccessor :: (Eq a, Show a) => (RuleSpec a, [a]) -> LRule a -> LRule a
 addSuccessor (spec, prod) (LRule rules) =

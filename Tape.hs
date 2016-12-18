@@ -19,9 +19,10 @@ data Tape a = Tape {
   rightPart  :: [a]
   } deriving (Eq)
 
-instance (Show a) => Show (Tape a) where
+instance Show a => Show (Tape a) where
   show (Tape l r) =
     show (reverse $ take 5 l) ++ " | " ++ show (reverse $ take 5 r)
+
 newtype Productions a = Productions { runProductions :: a }
 
 newTape :: Tape a

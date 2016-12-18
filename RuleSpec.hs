@@ -12,7 +12,7 @@ import Data.List (isPrefixOf)
 
 data RuleSpec a = RuleSpec
   { rsMeta :: Metagrammar a,
-    leftCond :: [a],
+    leftCond :: [a],  -- Left condition must be reversed.
     headCond :: [a],
     rightCond :: [a]
   } deriving (Eq, Show)
@@ -31,7 +31,7 @@ instance (Eq a, Show a) => Ord (RuleSpec a) where
 matchSpec :: Eq a => RuleSpec a -> Tape a -> Bool
 matchSpec (RuleSpec meta l p r) tape =
     isPrefixOfIgnoring meta p (tapeHead tape) &&
-    lcondiff meta (reverse l) tape &&
+    lcondiff meta l tape &&
     rcondiff meta r tape
 
 matchSpecExact :: Eq a => RuleSpec a -> RuleSpec a -> Bool

@@ -4,6 +4,7 @@ module Parse (
   Grammar
   )
 where
+import Debug.Trace
 import Metagrammar
 import Grammar
 import RuleSpec
@@ -30,8 +31,7 @@ metagrammar toIgnore = Metagrammar
   (\a b -> case a of
       '(' -> b == ')'
       '[' -> b == ']'
-      _   -> False
-  )
+      _   -> False)
   isSpace
   (`elem` toIgnore)
   (== '*')
@@ -58,7 +58,7 @@ addOption k v (LSystem o m g a) = LSystem (insert k v o) m g a
 addMacro :: Ord a => [a] -> [a] -> LSystem a -> LSystem a
 addMacro k v (LSystem o m g a) = LSystem o (insert k v m) g a
 
-setAxiom :: [a] -> LSystem a -> LSystem a
+setAxiom :: Show a => [a] -> LSystem a -> LSystem a
 setAxiom a (LSystem opt mac gram _) = LSystem opt mac gram a
 
 setGrammar :: Grammar a -> LSystem a -> LSystem a
@@ -75,7 +75,7 @@ filterComments ls =
                  else
                    if "-}" `isPrefixOf` l then (res, True) else (l : res, False)
               ) ([], False) $
-  filter (\l@(x:_) -> (x /= '.') && not ("--" `isPrefixOf` l)) $
+  filter (not . ("--" `isPrefixOf`)) $
   filter (not.null) $ map strip ls
 
 addLineToSystem :: LSystem Char -> String -> LSystem Char
@@ -86,8 +86,8 @@ addLineToSystem sys line
 
 addParam :: String -> LSystem Char -> LSystem Char
 addParam line sys
-  | "axoim:" `isPrefixOf` line =
-    setAxiom (cleanArgument "axoim:" line) sys
+  | "axiom:" `isPrefixOf` line =
+    setAxiom (argFor "axiom:") sys
   | "define:" `isPrefixOf` line =
     let (name, def) = break isSpace $ cleanArgument "define:" line
     in
@@ -101,9 +101,10 @@ addParam line sys
   | "stepRatio:" `isPrefixOf` line =
     addOption "stepRatio" (cleanArgument "stepRatio:" line) sys
   | otherwise = sys
+  where argFor = cleanArgument line
 
 cleanArgument :: String -> String -> String
-cleanArgument argName str = strip $ fromJust $ stripPrefix argName str
+cleanArgument str argName = strip $ fromJust $ stripPrefix argName str
 
 setIgnore :: String -> LSystem Char -> LSystem Char
 setIgnore toIgnore sys =
@@ -128,7 +129,7 @@ parseRule meta input
 parseRuleSpec :: Metagrammar Char -> String -> RuleSpec Char
 parseRuleSpec meta [] = error "Empty RuleSpec string."
 parseRuleSpec meta str
-  | 2 == length pieces = parseRuleSpec2 meta (head pieces) $ pieces !! 1
+  | 2 == length pieces = parseRuleSpec2 meta ((reverse . head) pieces) $ pieces !! 1
   | otherwise          = parseRuleSpec2 meta "*" $ head pieces
   where pieces = map strip $ split "<" str
 
