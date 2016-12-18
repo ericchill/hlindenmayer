@@ -89,17 +89,17 @@ addParam line sys
   | "axiom:" `isPrefixOf` line =
     setAxiom (argFor "axiom:") sys
   | "define:" `isPrefixOf` line =
-    let (name, def) = break isSpace $ cleanArgument "define:" line
+    let (name, def) = break isSpace $ argFor "define:"
     in
       addMacro name (strip def) sys
   | "delta:" `isPrefixOf` line =
-    addOption "delta" (cleanArgument "delta:" line) sys
+    addOption "delta" (argFor "delta:") sys
   | "ignore:" `isPrefixOf` line =
-    setIgnore (cleanArgument "ignore:" line) sys
+    setIgnore (argFor "ignore:") sys
   | "iterate:" `isPrefixOf` line =
-    addOption "iterate" (cleanArgument "iterate:" line) sys
+    addOption "iterate" (argFor "iterate:") sys
   | "stepRatio:" `isPrefixOf` line =
-    addOption "stepRatio" (cleanArgument "stepRatio:" line) sys
+    addOption "stepRatio" (argFor "stepRatio:") sys
   | otherwise = sys
   where argFor = cleanArgument line
 
