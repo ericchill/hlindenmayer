@@ -1,36 +1,26 @@
-module Grammar where
-import Rule
-import RuleSpec
-import Tape
-import Data.Char
-import Data.List
-import qualified Data.Map as Map
-
-metagrammar :: String -> Metagrammar Char
-metagrammar toIgnore = Metagrammar
-  (\a -> a `elem` "([")
-  (\a -> a `elem` ")]")
-  (\a b -> case a of
-      '(' -> b == ')'
-      '[' -> b == ']'
-      _   -> False
+module Grammar (
+  Grammar(..),
+  getMetagrammar,
+  setMetagrammar,
+  addRuleFromSpec,
+  produce
   )
-  (\a -> isSpace a)
-  (\a -> a `elem` toIgnore)
-  (\a -> a == '*')
-  (\a -> a == '%')
-  "()[]*"
+where
+import Metagrammar
+import Rule
+import Data.List (isPrefixOf, sortBy)
+import qualified Data.Map as Map
 
 data Grammar a = Grammar (Metagrammar a) (Map.Map [a] (LRule a))
 
-newGrammar :: Metagrammar Char -> Grammar Char
-newGrammar meta = Grammar meta Map.empty
+getMetagrammar :: Grammar a -> Metagrammar a
+getMetagrammar (Grammar meta _) = meta
 
-addRule :: String -> Grammar Char -> Grammar Char
-addRule ruleStr g@(Grammar meta _) = addRuleFromSpec (parseRule meta ruleStr) g
+setMetagrammar :: Metagrammar a -> Grammar a -> Grammar a
+setMetagrammar meta (Grammar _ rules) = Grammar meta rules
 
-addRuleFromSpec :: (RuleSpec Char, String) -> Grammar Char -> Grammar Char
-addRuleFromSpec newRule g@(Grammar meta rules) =
+addRuleFromSpec :: Ord a => (RuleSpec a, [a]) -> Grammar a -> Grammar a
+addRuleFromSpec newRule (Grammar meta rules) =
   let rule@(s@(RuleSpec _ p _ _), production) = newRule
   in
     case Map.lookup p rules of
@@ -64,11 +54,9 @@ lookupRule tape (Grammar _ rules) =
 
 matchLongestPrefix :: Eq a => Tape a -> [[a]] -> Maybe [a]
 matchLongestPrefix tape prefixes =
-  -- haystack should be sorted already.
-  -- sortBy (\a b -> (length b) `compare` (length a)) $
   case
-       filter (\a -> a `isPrefixOf` (tapeHead tape)) prefixes
+       filter (\a -> a `isPrefixOf` (tapeHead tape)) $
+       sortBy (\a b -> (length b) `compare` (length a)) prefixes  -- TODO Cache this
   of
     [] -> Nothing
     x  -> Just $ (head . reverse) x
-
