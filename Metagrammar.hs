@@ -7,6 +7,7 @@ module Metagrammar (
   Tape
     )
 where
+import Debug.Trace
 import Tape
 
 data Metagrammar a = Metagrammar {
@@ -26,24 +27,24 @@ instance Eq a => Eq (Metagrammar a) where
 instance Show a => Show (Metagrammar a) where
   show a = "(Metagrammar " ++ show (rsSig a) ++ ")"
 
-lcondiff :: Eq a => Metagrammar a -> [a] -> Tape a -> Bool
-lcondiff _ [] _ = True
+lcondiff :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> Bool
+lcondiff _ [] _ = trace "lNull" True
 lcondiff meta s@(x:xs) tape
-  | isIgnored meta h      = justMove
-  | isOpenBracket meta h  = justMove
-  | isCloseBracket meta h = lcondiff meta s (skipLeft meta tape)
-  | h /= x                = False
-  | otherwise             = justMove
+  | isIgnored meta h      = trace "lIgnore" justMove
+  | isOpenBracket meta h  = trace "lOpen" justMove
+  | isCloseBracket meta h = trace "lClose" $ lcondiff meta s (skipLeft meta tape)
+  | h /= x                = trace ("lFalse" ++ show h ++ ", " ++ show x) False
+  | otherwise             = trace "lOtherwise" justMove
   where  h = head $ tapeHead tape
          justMove = lcondiff meta xs (moveLeft tape)
 
-rcondiff :: Eq a => Metagrammar a -> [a] -> Tape a -> Bool
-rcondiff _ [] _ = True
+rcondiff :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> Bool
+rcondiff _ [] _ = trace "rNull" True
 rcondiff meta s@(x:xs) tape
-  | isIgnored meta h     = justMove
-  | isOpenBracket meta x = rcondiff meta s (skipRight meta tape)
-  | h /= x               = False
-  | otherwise            = justMove
+  | isIgnored meta h     = trace "rIgnore" justMove
+  | isOpenBracket meta x = trace "rOpen" $ rcondiff meta s (skipRight meta tape)
+  | h /= x               = trace ("rFalse" ++ show h ++ ", " ++ show x) False
+  | otherwise            = trace "rOtherwise" justMove
   where h = head $ tapeHead tape
         justMove = rcondiff meta xs (moveRight tape)
   

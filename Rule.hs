@@ -6,6 +6,7 @@ module Rule (
   module RuleSpec,
   module Tape,
 ) where
+import Utils
 import Prelude hiding (lookup)
 import RuleSpec
 import Tape
@@ -17,11 +18,14 @@ data LRule a = LRule (Map (RuleSpec a) [[a]]) deriving (Eq, Show)
 makeRule :: RuleSpec a -> [a] -> LRule a
 makeRule spec production = LRule $ singleton spec [production]
 
-applyRule :: Eq a => LRule a -> Tape a -> [[a]]
+applyRule :: (Eq a, Show a) => LRule a -> Tape a -> [[a]]
 applyRule (LRule rules) tape =
   let matches = filterWithKey (\spec _ -> matchSpec spec tape) rules
   in
-   snd $ findMax matches
+    if null matches then
+      traceIf False ("null matches for " ++ (show $ tapeHead tape) ++ " in " ++ show rules) []
+    else let m = findMax matches in
+      traceIf False ("matched " ++ (show matches) ++ "\n   max is " ++ show m) $ snd m
 
 addSuccessor :: (Eq a, Show a) => (RuleSpec a, [a]) -> LRule a -> LRule a
 addSuccessor (spec, prod) (LRule rules) =
