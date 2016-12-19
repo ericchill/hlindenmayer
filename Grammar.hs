@@ -33,43 +33,39 @@ addRuleFromSpec newRule (Grammar meta rules) =
   
 produce :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> Tape a -> Tape a
 produce g tapeIn tapeOut
-  | atEnd tapeIn = traceIf False ("atEnd " ++ show tapeOut) tapeOut
+  | tapeIn `seq` atEnd tapeIn = tapeOut
   | otherwise =
     let (nextIn, prod) = produceOne g tapeIn
         newOut = appendHead tapeOut $ head prod -- Just pick first possibility.
     in
-      traceIf False ("produce " ++ show prod ++ ", nextIn = " ++ show nextIn ++ ", newOut = " ++
-             show newOut) $
       produce g nextIn newOut
     
 produceOne :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> (Tape a, [[a]])
 produceOne g@(Grammar meta _) tapeIn =
-  let justCopy' = (moveRight tapeIn, [[(head . tapeHead) tapeIn]])
-      justCopy = traceIf False ("justCopy " ++ show justCopy') justCopy
+  let justCopy = (moveRight tapeIn, [[(head . tapeHead) tapeIn]])
   in
     case tapeHead tapeIn of
       [] -> (tapeIn, [[]])
       (x:_)
-        | isSkipBalanced meta x -> traceIf False "foo" (moveRight $ skipRight meta tapeIn, [[]])
-        | isBlank meta x -> traceIf False "isBlank" justCopy
+        | isSkipBalanced meta x -> (moveRight $ skipRight meta tapeIn, [[]])
+        | isBlank meta x -> justCopy
         | otherwise ->
             case lookupRule tapeIn g of
               Just (matched, mrule) ->
-                case traceIf False (show mrule) mrule of
+                case mrule of
                   Just rule ->
                     let productions = applyRule rule tapeIn in
-                      if null productions then traceIf False "null productions" justCopy
-                      else traceIf False ("returning " ++ show productions)
-                      (moveRightBy tapeIn (length matched),
-                        productions)
-                  Nothing -> traceIf False "No spec match" justCopy
-              Nothing -> traceIf False "No rule" justCopy
+                      if null productions then justCopy
+                      else (moveRightBy tapeIn (length matched),
+                            productions)
+                  Nothing -> justCopy
+              Nothing -> justCopy
 
-lookupRule :: (Eq a, Ord a) => Tape a -> Grammar a -> Maybe ([a], Maybe (LRule a))
+lookupRule :: (Eq a, Ord a, Show a) => Tape a -> Grammar a -> Maybe ([a], Maybe (LRule a))
 lookupRule tape (Grammar _ rules) =
   case matchLongestPrefix tape $ Map.keys rules of
-    Nothing -> Nothing
     Just matched -> Just (matched, Map.lookup matched rules)
+    Nothing -> Nothing
 
 matchLongestPrefix :: Eq a => Tape a -> [[a]] -> Maybe [a]
 matchLongestPrefix tape prefixes =
@@ -77,5 +73,5 @@ matchLongestPrefix tape prefixes =
        filter (\a -> a `isPrefixOf` tapeHead tape) $
        sortBy (\a b -> length b `compare` length a) prefixes  -- TODO Cache this
   of
+    x@(_:_) -> Just $ last x
     [] -> Nothing
-    x  -> Just $ last x

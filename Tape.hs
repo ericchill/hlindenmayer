@@ -3,6 +3,7 @@ module Tape (
   newTape,
   atEnd,
   atStart,
+  rewind,
   moveRight,
   moveRightBy,
   moveRightMatching,
@@ -37,6 +38,9 @@ atStart :: Tape a -> Bool
 atStart (Tape [] _) = True
 atStart _           = False
 
+rewind :: Tape a -> Tape a
+rewind (Tape l r) = Tape [] $ reverse l ++ r
+
 moveRight :: Tape a -> Tape a
 moveRight (Tape l (x:xs)) = Tape (x:l) xs
 moveRight (Tape _ []) = error "Tape already at right."
@@ -60,11 +64,4 @@ tapeHeadLeft (Tape l _) = reverse l
 
 -- Place list onto tape, leaving head just past last element
 appendHead :: Show a => Tape a -> [a] -> Tape a
-appendHead t@(Tape l r) list =
-  let newLeft = (reverse list) ++ l
-      result = Tape newLeft r
-  in
-    traceIf False (
-    "appending " ++ show list ++ " to " ++ (show t) ++ " yielding " ++ show result ++ "(newLeft = " ++ show newLeft ++ ")")
-    result
---appendHead list (Tape l r) = Tape ((foldr (:) l) $ trace ("appending " ++ show list) list) r
+appendHead (Tape l r) list = Tape (foldr (:) l list) r

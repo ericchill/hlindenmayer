@@ -1,3 +1,16 @@
+{-
+A simple example
+-}
 axiom: F
-F --> FF
-A<F --> AA
+F --> FAAF
+F < A --> B
+A > F --> Q
+{-
+more comments
+-}
+--A --> Q
+--A<F --> AA
+{-
+F
+FAAF
+-}
