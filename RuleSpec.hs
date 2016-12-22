@@ -16,8 +16,7 @@ data RuleSpec a = RuleSpec {
   rightCond :: [a]
   } deriving (Show)
 
--- While some pairs of RuleSpecs are properly more inclusive than others, the entire
--- class doesn't have a proper order.
+-- RuleSpecs are only partially ordered, and therefor unsuitable for storing in Maps.
 instance (Eq a, Show a) => Eq (RuleSpec a) where
   a@(RuleSpec ma la pa ra) == b@(RuleSpec mb lb pb rb)
     | pa /= pb             = False
