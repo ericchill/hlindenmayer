@@ -13,13 +13,17 @@ module Tape (
   )
 where
 import Utils
-import Data.List (foldl', foldr)
+import qualified Data.List as List
+--(foldl', foldr)
 
 -- First item is reverse of first half.
 data Tape a = Tape {
   leftPart :: [a],
   rightPart  :: [a]
   } deriving (Eq)
+
+instance Foldable Tape where
+  foldr f acc tape = List.foldr f acc $ (tapeHead . rewind) tape
 
 instance Show a => Show (Tape a) where
   show (Tape l r) =
@@ -46,7 +50,7 @@ moveRight (Tape l (x:xs)) = Tape (x:l) xs
 moveRight (Tape _ []) = error "Tape already at right."
 
 moveRightBy :: Tape a -> Int -> Tape a
-moveRightBy tape dist = foldl' (\t _ -> moveRight t) tape [1..dist]
+moveRightBy tape dist = List.foldl' (\t _ -> moveRight t) tape [1..dist]
 
 moveRightMatching :: (Eq a) => [a] -> Tape a -> Tape a
 moveRightMatching x t@(Tape _ r) =
