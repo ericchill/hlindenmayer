@@ -1,5 +1,6 @@
 module Grammar (
   Grammar(..),
+  newGrammar,
   getMetagrammar,
   setMetagrammar,
   addRuleFromSpec,
@@ -10,35 +11,26 @@ where
 import Utils
 import Metagrammar
 import Rule
+import Data.Foldable (toList)
 import Data.List (isPrefixOf, sortBy)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 
 data Grammar a = Grammar (Metagrammar a) (Map.Map [a] (LRule a)) deriving (Show)
 
-getMetagrammar :: Grammar a -> Metagrammar a
-getMetagrammar (Grammar meta _) = meta
+newGrammar :: Metagrammar a -> Grammar a
+newGrammar meta = Grammar meta Map.empty
 
-setMetagrammar :: Metagrammar a -> Grammar a -> Grammar a
-setMetagrammar meta (Grammar _ rules) = Grammar meta rules
+produce :: (Eq a, Ord a, Show a) => Grammar a -> [a] -> [a]
+produce g s = toList $ produce' g (newTape s) (newTape [])
 
-addRuleFromSpec :: (Ord a, Show a) => (RuleSpec a, [a]) -> Grammar a -> Grammar a
-addRuleFromSpec newRule (Grammar meta rules) =
-  let rule@(spec, production) = newRule
-      pred = headCond spec
-  in
-    case Map.lookup pred rules of
-      Nothing -> Grammar meta (Map.insert pred (makeRule spec production) rules)
-      Just aRule ->
-        Grammar meta $ Map.insert pred (addSuccessor rule aRule) rules
-  
-produce :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> Tape a -> Tape a
-produce g tapeIn tapeOut
+produce' :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> Tape a -> Tape a
+produce' g tapeIn tapeOut
   | tapeIn `seq` atEnd tapeIn = tapeOut
   | otherwise =
     let (nextIn, prod) = produceOne g tapeIn
         newOut = appendHead tapeOut $ head prod -- Just pick first possibility.
     in
-      produce g nextIn newOut
+      produce' g nextIn newOut
     
 produceOne :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> (Tape a, [[a]])
 produceOne g@(Grammar meta _) tapeIn =
@@ -60,6 +52,22 @@ produceOne g@(Grammar meta _) tapeIn =
                             productions)
                   Nothing -> justCopy
               Nothing -> justCopy
+
+getMetagrammar :: Grammar a -> Metagrammar a
+getMetagrammar (Grammar meta _) = meta
+
+setMetagrammar :: Metagrammar a -> Grammar a -> Grammar a
+setMetagrammar meta (Grammar _ rules) = Grammar meta rules
+
+addRuleFromSpec :: (Ord a, Show a) => (RuleSpec a, [a]) -> Grammar a -> Grammar a
+addRuleFromSpec newRule (Grammar meta rules) =
+  let rule@(spec, production) = newRule
+      pred = headCond spec
+  in
+    case Map.lookup pred rules of
+      Nothing -> Grammar meta (Map.insert pred (makeRule spec production) rules)
+      Just aRule ->
+        Grammar meta $ Map.insert pred (addSuccessor rule aRule) rules
 
 lookupRule :: (Eq a, Ord a, Show a) => Tape a -> Grammar a -> Maybe ([a], Maybe (LRule a))
 lookupRule tape (Grammar _ rules) =

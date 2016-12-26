@@ -1,20 +1,24 @@
 module Parse (
   LSystem(..),
   parseRuleFile,
-  Grammar
+  getOption,
+  getFloatOption,
+  getIntOption,
+  module Grammar,
   )
 where
 import Debug.Trace
 import Metagrammar
 import Grammar
 import RuleSpec
-import Prelude hiding (null)
---import Control.Monad
+import Turtle (TAction, encodeActions, Turt)
+import Prelude hiding (lookup, null)
+import Control.Monad
 import Data.Char (isSpace)
 import Data.List (foldl', isPrefixOf, null, stripPrefix)
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, fromMaybe)
 import Data.String.Utils
-import Data.Map.Strict (Map, empty, insert)
+import Data.Map.Strict (Map, empty, insert, lookup)
 
 {-
   rule
@@ -38,33 +42,49 @@ metagrammar toIgnore = Metagrammar
   (== '%')
   "()[]*"
 
-newGrammar :: Metagrammar Char -> Grammar Char
-newGrammar meta = Grammar meta empty
+data LSystem a b = LSystem {
+  lOptions     :: Map String String,
+  lMacros      :: Map String [TAction a],
+  lGrammar     :: Grammar b,
+  lAxiom       :: [b]
+  } -- deriving (Show)
 
-data LSystem a = LSystem {
-  options     :: Map [a] [a],
-  macros      :: Map [a] [a],
-  grammar     :: Grammar a,
-  axiom       :: [a]
-  } deriving (Show)
-
-parseRuleFile :: String -> LSystem Char
+parseRuleFile :: Turt a => String -> Either String (LSystem a Char)
 parseRuleFile text =
-  foldl' addLineToSystem emptySystem $ filterComments $ lines text
+  foldM addLineToSystem emptySystem $ filterComments $ lines text
 
-addOption :: Ord a => [a] -> [a] -> LSystem a -> LSystem a
+addOption :: Turt a => String -> String -> LSystem a b -> LSystem a b
 addOption k v (LSystem o m g a) = LSystem (insert k v o) m g a
 
-addMacro :: Ord a => [a] -> [a] -> LSystem a -> LSystem a
-addMacro k v (LSystem o m g a) = LSystem o (insert k v m) g a
+getOption :: Turt a => LSystem a b -> String -> String -> String
+getOption sys key dflt =
+  fromMaybe dflt $ lookup key $ lOptions sys
 
-setAxiom :: Show a => [a] -> LSystem a -> LSystem a
+getFloatOption :: Turt a => LSystem a b -> String -> Float -> Float
+getFloatOption sys key dflt =
+  case lookup key $ lOptions sys of
+    Just value -> read value
+    Nothing    -> dflt
+
+getIntOption :: (Turt a, Ord b) => LSystem a b -> String -> Int -> Int
+getIntOption sys key dflt =
+  case lookup key $ lOptions sys of
+    Just value -> read value
+    Nothing    -> dflt
+
+addMacro :: Turt a => String -> String -> LSystem a b -> Either String (LSystem a b)
+addMacro k v (LSystem o m g a) =
+  case encodeActions v of
+    Right actions -> Right $ LSystem o (insert k actions m) g a
+    Left err -> Left err
+
+setAxiom :: (Turt a, Show b) => [b] -> LSystem a b -> LSystem a b
 setAxiom a (LSystem opt mac gram _) = LSystem opt mac gram a
 
-setGrammar :: Grammar a -> LSystem a -> LSystem a
+setGrammar :: Turt a => Grammar b -> LSystem a b -> LSystem a b
 setGrammar a (LSystem opt mac _ ax) = LSystem opt mac a ax
 
-emptySystem :: LSystem Char
+emptySystem :: Turt a => LSystem a Char
 emptySystem = LSystem empty empty (newGrammar $ metagrammar "") ""
 
 filterComments :: [String] -> [String]
@@ -78,43 +98,43 @@ filterComments ls =
   filter (not . ("--" `isPrefixOf`)) $
   filter (not.null) $ map strip ls
 
-addLineToSystem :: LSystem Char -> String -> LSystem Char
-addLineToSystem sys [] = sys
+addLineToSystem :: Turt a => LSystem a Char -> String -> Either String (LSystem a Char)
+addLineToSystem sys [] = Right sys
 addLineToSystem sys line
   | ':' `elem` line = addParam line sys
   | otherwise       = addRule line sys
 
-addParam :: String -> LSystem Char -> LSystem Char
+addParam :: Turt a => String -> LSystem a Char -> Either String (LSystem a Char)
 addParam line sys
   | "axiom:" `isPrefixOf` line =
-    setAxiom (argFor "axiom:") sys
+    Right $ setAxiom (argFor "axiom:") sys
   | "define:" `isPrefixOf` line =
     let (name, def) = break isSpace $ argFor "define:"
     in
       addMacro name (strip def) sys
   | "delta:" `isPrefixOf` line =
-    addOption "delta" (argFor "delta:") sys
+    Right $ addOption "delta" (argFor "delta:") sys
   | "ignore:" `isPrefixOf` line =
-    setIgnore (argFor "ignore:") sys
+    Right $ setIgnore (argFor "ignore:") sys
   | "iterate:" `isPrefixOf` line =
-    addOption "iterate" (argFor "iterate:") sys
+    Right $ addOption "iterate" (argFor "iterate:") sys
   | "stepRatio:" `isPrefixOf` line =
-    addOption "stepRatio" (argFor "stepRatio:") sys
-  | otherwise = sys
+    Right $ addOption "stepRatio" (argFor "stepRatio:") sys
+  | otherwise = Right sys
   where argFor = cleanArgument line
 
 cleanArgument :: String -> String -> String
 cleanArgument str argName = strip $ fromJust $ stripPrefix argName str
 
-setIgnore :: String -> LSystem Char -> LSystem Char
+setIgnore :: Turt a => String -> LSystem a Char -> LSystem a Char
 setIgnore toIgnore sys =
-  setGrammar (setMetagrammar (metagrammar toIgnore) $ grammar sys) sys
+  setGrammar (setMetagrammar (metagrammar toIgnore) $ lGrammar sys) sys
 
-addRule :: String -> LSystem Char -> LSystem Char
+addRule :: Turt a => String -> LSystem a Char -> Either String (LSystem a Char)
 addRule line sys =
-  case parseRule (getMetagrammar $ grammar sys) line of
-    Just specAndProd -> setGrammar (addRuleFromSpec specAndProd $ grammar sys) sys
-    Nothing -> sys
+  case parseRule (getMetagrammar $ lGrammar sys) line of
+    Just specAndProd -> Right $ setGrammar (addRuleFromSpec specAndProd $ lGrammar sys) sys
+    Nothing -> Right sys
 
 parseRule :: Metagrammar Char -> String -> Maybe (RuleSpec Char, String)
 parseRule meta input

@@ -14,7 +14,6 @@ module Tape (
 where
 import Utils
 import qualified Data.List as List
---(foldl', foldr)
 
 -- First item is reverse of first half.
 data Tape a = Tape {
@@ -24,6 +23,10 @@ data Tape a = Tape {
 
 instance Foldable Tape where
   foldr f acc tape = List.foldr f acc $ (tapeHead . rewind) tape
+
+instance Functor Tape where
+  fmap f tape =
+    Tape (map f $ leftPart tape) (map f $ rightPart tape)
 
 instance Show a => Show (Tape a) where
   show (Tape l r) =
