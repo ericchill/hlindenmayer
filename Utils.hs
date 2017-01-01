@@ -1,7 +1,7 @@
 module Utils (
   ErrorM(..),
   BoolMonad(..),
-  selectE,
+  caseM,
   (&&&&), (||||), lNot,
   FloatArg(..),
   floatConst,
@@ -19,16 +19,15 @@ import Control.Applicative
 import Debug.Trace
 
 {-
-> selectM default $
->  [(m Bool, a)]
+> caseM [(m Bool, a)] default
 -}
-selectE :: ErrorM a -> [(ErrorM Bool, ErrorM a)] -> ErrorM a
-select def [] = def
-selectE def (c:cs) =
+caseM :: [(ErrorM Bool, ErrorM a)] -> ErrorM a -> ErrorM a
+caseM [] def = def
+caseM (c:cs) def =
   let (cond, action) = c in
     cond >>= (\test ->
                 if test then action
-                else select def cs)
+                else caseM cs def)
 
 (&&&&) :: Applicative m => m Bool -> m Bool -> m Bool
 (&&&&) = liftA2 (&&)

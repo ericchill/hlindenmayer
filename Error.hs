@@ -1,4 +1,5 @@
 module Error (
+  ErrorIO,
   ErrorM,
   appendError,
   appendErrorT,
@@ -11,11 +12,14 @@ module Error (
 import Control.Monad.Except
 import Control.Monad.Identity
 
+--have things use this!
+type ErrorIO = ExceptT String IO
 
 type ErrorM = ExceptT String Identity
 
 type BoolMonad = ErrorM Bool
 
+-- For use with catchError
 appendError :: String -> String -> ErrorM a
 appendError extra err = throwError $ err ++ "; " ++ extra
 

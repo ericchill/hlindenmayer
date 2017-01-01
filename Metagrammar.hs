@@ -40,12 +40,12 @@ testMeta forType =
 lcondiff :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> BoolMonad
 lcondiff _ [] _ = return True
 lcondiff meta s@(x:xs) tape =
-  selectE diffNext [
+  caseM [
       (isIgnored meta <$> h     , diffNext),
       (isOpenBracket meta <$> h , diffNext),
-      (isCloseBracket meta <$> h,
-          skipLeft meta tape >>= lcondiff meta s),
+      (isCloseBracket meta <$> h, skipLeft meta tape >>= lcondiff meta s),
       ((x /=) <$> h             , return False)]
+      diffNext
   where  t' = moveLeft tape
          h = head . tapeHead <$> t'
          diffNext = join $ lcondiff meta xs <$> t'
@@ -70,11 +70,11 @@ skipLeftRec meta delimStack@(d:ds) tape
 rcondiff :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> BoolMonad
 rcondiff _ [] _ = return True
 rcondiff meta s@(x:xs) tape =
-  selectE diffNext [
-     (isIgnored meta <$> h , diffNext),
-     (isOpenBracket meta <$> h ,
-        skipRight meta tape >>= rcondiff meta s),
-     ((x /=) <$> h           , return False)]
+  caseM [
+     (isIgnored meta <$> h     , diffNext),
+     (isOpenBracket meta <$> h , skipRight meta tape >>= rcondiff meta s),
+     ((x /=) <$> h             , return False)]
+     diffNext
   where t' = moveRight tape
         h = (head . tapeHead) <$> t'
         diffNext = t' >>= rcondiff meta xs
@@ -83,7 +83,7 @@ rcondiff meta s@(x:xs) tape =
 skipRight :: Eq a => Metagrammar a -> Tape a -> TapeMonad a
 skipRight meta tape
   | isAtEnd tape = throwError "Already at end in skipRight"
-  | otherwise = skipRightRec meta [(head . tapeHead) tape] tape
+  | otherwise    = skipRightRec meta [(head . tapeHead) tape] tape
 
 skipRightRec :: Eq a => Metagrammar a -> [a] -> Tape a -> TapeMonad a
 skipRightRec _ [] xs = return xs
@@ -91,7 +91,7 @@ skipRightRec meta delimStack@(d:ds) tape
   | isAtEnd tape = throwError "skipRight: Missing closing delimiter."
   | closesBracket meta x d = tape' >>= skipRightRec meta ds
   | isOpenBracket meta x   = tape' >>= skipRightRec meta (x:ds)
-  | otherwise = tape' >>= skipRightRec meta delimStack
+  | otherwise              = tape' >>= skipRightRec meta delimStack
   where
     tape' = moveRight tape
     x = (head . tapeHead) tape
