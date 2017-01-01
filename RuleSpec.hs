@@ -7,6 +7,7 @@ module RuleSpec (
   ) where
 import Metagrammar
 import Tape
+import Utils
 import Data.List (isPrefixOf)
 
 data RuleSpec a = RuleSpec {
@@ -23,12 +24,13 @@ instance (Eq a, Show a) => Eq (RuleSpec a) where
     | ma /= mb             = False
     | lb == la && rb == ra = True
     | otherwise            = False
-  
-matchSpec :: (Eq a, Show a) => RuleSpec a -> Tape a -> Bool
+
+matchSpec :: (Eq a, Show a) => RuleSpec a -> Tape a -> BoolMonad
 matchSpec spec@(RuleSpec meta l p r) tape =
-    isPrefixOfIgnoring meta p (tapeHead tape) &&
-    (wild l || lcondiff meta l tape) &&
-    (wild r || rcondiff meta r tape)
+    pure (isPrefixOfIgnoring meta p $ tapeHead tape) &&&&
+    (if wild l then return True else lcondiff meta l tape) &&&&
+    (if wild r then return True else rcondiff meta r tape) `catchError`
+    appendError ("matchSpec " ++ show l ++ " < " ++ show p ++ " > " ++ show r)
     where wild = isWild meta . head
 
 matchSpecExact :: Eq a => RuleSpec a -> RuleSpec a -> Bool

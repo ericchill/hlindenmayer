@@ -1,34 +1,22 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Turtle (
-  TAction,
+  TAction(..),
+  Turt(..),
   encodeActions,
   foldActions,
-  FloatArg(..),
-  floatConst,
-  StringArg(..),
-  stringConst,
   TPosition,
   TOrientation,
-  Turt(..),
   EuclideanState,
   )
 where
 import Math
+import Utils
 import Control.Monad
-import Data.Either.Unwrap (fromRight)
 import Linear.V3
 import System.IO
 
 type TPosition = V3F
 type TOrientation = M33F
-
-data FloatArg a = FloatArg (a -> Float)
-data StringArg a = StringArg (a -> String)
-
-floatConst :: Turt a => Float -> FloatArg a
-floatConst val = FloatArg $ const val
-
-stringConst :: Turt a => String -> StringArg a
-stringConst val = StringArg $ const val
 
 data TAction a =
   Branch [TAction a] |
@@ -47,83 +35,88 @@ data TAction a =
   GrowPen (FloatArg a) |
   SetPenWidth (FloatArg a) |
   InvokeMacro (StringArg a) |
-  Noop
+  Noop deriving (Show)
 
-type EncodeResult a = Either (String, String) (String, TAction a)
+encodeActions :: Turt a => String -> ErrorM [TAction a]
+encodeActions s =
+  do
+    (_, actions) <- appendErrorT " in encodeActions" (encodeActionsRec s)
+    return actions
 
-encodeActions :: Turt a => String -> Either String [TAction a]
-encodeActions [] = Right [(snd . fromRight) $ encodeAction []]
-encodeActions actions =
-  case encodeAction actions of
-    Right (rest, enc) ->
-      case encodeActions rest of
-        Right encs -> Right (enc : encs)
-        err        -> err
-    Left (_, err) -> Left err
+encodeActionsRec :: Turt a => String -> ErrorM (String, [TAction a])
+encodeActionsRec [] =
+  do
+    (_, action) <- encodeAction []
+    return ([], [action])
+encodeActionsRec s =
+  do
+    (rest, action) <- encodeAction s
+    (rest', actions) <- encodeActionsRec rest
+    return (rest', action : actions)
 
 -- On error string is at error, otherwise it's after parsed action.
 -- Likely cause of future errors will be in parsing expressions as arguments.
-encodeAction :: Turt a => String -> EncodeResult a
-encodeAction [] = Right ([], Noop)
+encodeAction :: Turt a => String -> ErrorM (String, TAction a)
+encodeAction [] = return ([], Noop)
 encodeAction s@(x:xs)
   | x == '['  = encodeBranch xs
-  | x == 'F'  = Right (xs, DrawLine $ floatConst 1)
-  | x == 'G'  = Right (xs, DrawNoMark $ floatConst 1)
-  | x == 'f'  = Right (xs, Move $ floatConst 1)
-  | x == '+'  = Right (xs, TurnLeft $ floatConst 1)
-  | x == '-'  = Right (xs, TurnRight $ floatConst 1)
-  | x == '&'  = Right (xs, PitchDown $ floatConst 1)
-  | x == '^'  = Right (xs, PitchUp $ floatConst 1)
-  | x == '\\' = Right (xs, RollLeft $ floatConst 1)
-  | x == '/'  = Right (xs, RollRight $ floatConst 1)
-  | x == '|'  = Right (xs, TurnAround)
-  | x == '$'  = Right (xs, ResetOrientation)
+  | x == 'F'  = return (xs, DrawLine $ floatConst 1)
+  | x == 'G'  = return (xs, DrawNoMark $ floatConst 1)
+  | x == 'f'  = return (xs, Move $ floatConst 1)
+  | x == '+'  = return (xs, TurnLeft $ floatConst 1)
+  | x == '-'  = return (xs, TurnRight $ floatConst 1)
+  | x == '&'  = return (xs, PitchDown $ floatConst 1)
+  | x == '^'  = return (xs, PitchUp $ floatConst 1)
+  | x == '\\' = return (xs, RollLeft $ floatConst 1)
+  | x == '/'  = return (xs, RollRight $ floatConst 1)
+  | x == '|'  = return (xs, TurnAround)
+  | x == '$'  = return (xs, ResetOrientation)
   | x == '~'  =
     if null xs then
-      Left (s, "Dangling macro invocation.")
+      throwError $ show (s, "Dangling macro invocation.")
     else
-      Right (tail xs, InvokeMacro $ stringConst [head xs])
-  | x == '\'' = Right (xs, ShrinkPen $ floatConst 1)
-  | x == '`'  = Right (xs, GrowPen $ floatConst 1)
-  | x == 'p'  = Right (xs, SetPenWidth $ floatConst 1)
-  | otherwise = Right (xs, Noop)
+      return (tail xs, InvokeMacro $ stringConst [head xs])
+  | x == '\'' = return (xs, ShrinkPen $ floatConst 1)
+  | x == '`'  = return (xs, GrowPen $ floatConst 1)
+  | x == 'p'  = return (xs, SetPenWidth $ floatConst 1)
+  | otherwise = return (xs, Noop)
 
-encodeBranch :: Turt a => String -> EncodeResult a
+encodeBranch :: Turt a => String -> ErrorM (String, TAction a)
 encodeBranch s =
-  case encodeBranchRec s of
-    Right (rest, actions) -> Right (rest, Branch actions)
-    Left err              -> Left err
+  do
+    (rest, actions) <- encodeBranchRec s
+    return (rest, Branch actions)
 
-encodeBranchRec :: Turt a => String -> Either (String, String) (String, [TAction a])
-encodeBranchRes [] = Left ([], "Oops, branch ran off end.")
+-- Like encode actions, but expects a close bracket.
+encodeBranchRec :: Turt a => String -> ErrorM (String, [TAction a])
+encodeBranchRes [] = throwError "Oops, branch ran off end."
 encodeBranchRec s@(x:xs)
-  | x == ']'  = Right (xs, [])
+  | x == ']'  = return (xs, [])
   | otherwise =
-    case encodeAction s of
-      Right (rest, action) ->
-        case encodeBranchRec rest of
-          Right (rest', actions) -> Right (rest', action : actions)
-          err                    -> err
-      Left err -> Left err
-      
+    do
+      (rest, action) <- appendErrorT " in encodeBranchRec" (encodeAction s)
+      (rest', actions) <- encodeBranchRec rest
+      return (rest', action : actions)
+
+type TurtleMonad a = ExceptT String IO a
 
 class Turt a where
-  drawLine   :: a -> FloatArg a -> IO a
-  drawNoMark :: a -> FloatArg a -> IO a
-  move       :: a -> FloatArg a -> IO a
+  drawLine   :: a -> FloatArg a -> TurtleMonad a
+  drawNoMark :: a -> FloatArg a -> TurtleMonad a
+  move       :: a -> FloatArg a -> TurtleMonad a
 
   getPos           :: a -> TPosition
-  setPos           :: a -> TPosition -> IO a
+  setPos           :: a -> TPosition -> TurtleMonad a
   getOrientation   :: a -> TOrientation
-  setOrientation   :: a -> TOrientation -> IO a
-  resetOrientation :: a -> IO a
+  setOrientation   :: a -> TOrientation -> TurtleMonad a
+  resetOrientation :: a -> TurtleMonad a
   getPenWidth      :: a -> Float
-  setPenWidth      :: a -> FloatArg a -> IO a
+  setPenWidth      :: a -> FloatArg a -> TurtleMonad a
 
   getMacro         :: a -> StringArg a -> [TAction a]
   
-  doAction :: a -> TAction a -> IO a
-  doAction t (Branch actions) = foldActions t actions
+  doAction :: a -> TAction a -> TurtleMonad a
+  doAction t (Branch actions) = foldActions actions t
   doAction t (DrawLine dt)    = drawLine t dt
   doAction t (DrawNoMark dt)  = drawLine t dt
   doAction t (Move dt)        = move t dt
@@ -141,47 +134,50 @@ class Turt a where
   doAction t (InvokeMacro a)  = invokeMacro t a
   doAction t _ = return t
 
-  reorient :: a -> V3F -> FloatArg a -> IO a
-  reorient tur axis (FloatArg arg) =
-    setOrientation tur $ rotateMatrix (getOrientation tur) axis $ arg tur
+  reorient :: a -> V3F -> FloatArg a -> TurtleMonad a
+  reorient tur axis arg =
+    setOrientation tur $ rotateMatrix (getOrientation tur) axis $ getFloatArg arg tur
 
-  reorientMinus :: a -> V3F -> FloatArg a -> IO a
-  reorientMinus tur axis (FloatArg arg) =
-    setOrientation tur $ rotateMatrix (getOrientation tur) axis $ - (arg tur)
+  reorientMinus :: a -> V3F -> FloatArg a -> TurtleMonad a
+  reorientMinus tur axis arg =
+    setOrientation tur $ rotateMatrix (getOrientation tur) axis $ - (getFloatArg arg tur)
     
-  turnLeft :: a -> FloatArg a -> IO a
+  turnLeft :: a -> FloatArg a -> TurtleMonad a
   turnLeft tur = reorient tur zAxis
 
-  turnRight :: a -> FloatArg a -> IO a
+  turnRight :: a -> FloatArg a -> TurtleMonad a
   turnRight tur = reorientMinus tur zAxis
 
-  pitchDown :: a -> FloatArg a -> IO a
+  pitchDown :: a -> FloatArg a -> TurtleMonad a
   pitchDown tur = reorient tur yAxis
 
-  pitchUp :: a -> FloatArg a -> IO a
+  pitchUp :: a -> FloatArg a -> TurtleMonad a
   pitchUp tur = reorient tur yAxis
 
-  rollLeft :: a -> FloatArg a -> IO a
+  rollLeft :: a -> FloatArg a -> TurtleMonad a
   rollLeft tur = reorientMinus tur xAxis
 
-  rollRight :: a -> FloatArg a -> IO a
+  rollRight :: a -> FloatArg a -> TurtleMonad a
   rollRight tur = reorient tur xAxis
 
-  turnAround :: a -> IO a
+  turnAround :: a -> TurtleMonad a
   turnAround tur = reorient tur zAxis $ floatConst pi
 
-  shrinkPen :: a -> FloatArg a -> IO a
-  shrinkPen tur (FloatArg arg) = setPenWidth tur $ floatConst $ getPenWidth tur - arg tur
+  shrinkPen :: a -> FloatArg a -> TurtleMonad a
+  shrinkPen tur arg = setPenWidth tur $
+    floatConst $ getPenWidth tur - getFloatArg arg tur
   
-  growPen :: a -> FloatArg a -> IO a
-  growPen tur (FloatArg arg) = setPenWidth tur $ floatConst $ getPenWidth tur + arg tur
+  growPen :: a -> FloatArg a -> TurtleMonad a
+  growPen tur arg = setPenWidth tur $
+    floatConst $ getPenWidth tur + getFloatArg arg tur
 
-  invokeMacro :: a -> StringArg a -> IO a
-  invokeMacro tur arg = foldActions tur $ getMacro tur arg
-  
-foldActions :: Turt a => a -> [TAction a] -> IO a
-foldActions = foldM doAction
+  invokeMacro :: a -> StringArg a -> TurtleMonad a
+  invokeMacro tur arg = foldActions (getMacro tur arg) tur
 
+
+foldActions :: Turt a => [TAction a] -> a -> TurtleMonad a
+foldActions [] t = return t
+foldActions (x:xs) t = doAction t x >>= foldActions xs
 
 data EuclideanState a = EuclideanState {
   tPosition    :: TPosition,

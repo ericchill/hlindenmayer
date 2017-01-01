@@ -9,6 +9,7 @@ module Math (
   module V3
   )
 where
+import Utils
 import Control.Lens
 import Linear.Matrix as M
 import Linear.Quaternion
@@ -32,4 +33,4 @@ zAxis :: V3F
 zAxis = V3 0 0 1
 
 translateX :: M33F -> Float -> V3F -> V3F
-translateX m sx v = sx *^ (m ^. column _x)
+translateX m sx v = v + sx *^ (m ^. column _x)

@@ -1,74 +1,70 @@
+-- A tape like object with a read head between two lists.
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS -fno-warn-name-shadowing #-}
+
 module Tape (
   Tape(..),
+  TapeMonad,
   newTape,
-  atEnd,
-  atStart,
+  isAtEnd,
+  isAtStart,
   rewind,
   moveRight,
   moveRightBy,
   moveRightMatching,
   moveLeft,
   tapeHead,
-  appendHead
   )
 where
+import Error
 import Utils
-import qualified Data.List as List
 
--- First item is reverse of first half.
 data Tape a = Tape {
-  leftPart :: [a],
-  rightPart  :: [a]
-  } deriving (Eq)
-
-instance Foldable Tape where
-  foldr f acc tape = List.foldr f acc $ (tapeHead . rewind) tape
-
-instance Functor Tape where
-  fmap f tape =
-    Tape (map f $ leftPart tape) (map f $ rightPart tape)
-
-instance Show a => Show (Tape a) where
-  show (Tape l r) =
-   "(Tape " ++ show (reverse $ take 10 l) ++ " " ++ show (take 10 r) ++ ")"
-
-newtype Productions a = Productions { runProductions :: a }
+  tLeft :: [a],
+  tRight :: [a]
+  }
+  
+type TapeMonad a = ErrorM (Tape a)
 
 newTape :: [a] -> Tape a
 newTape = Tape []
 
-atEnd :: Tape a -> Bool
-atEnd (Tape _ []) = True
-atEnd _           = False
+isAtStart :: Tape a -> Bool
+isAtStart = null . tLeft
 
-atStart :: Tape a -> Bool
-atStart (Tape [] _) = True
-atStart _           = False
-
-rewind :: Tape a -> Tape a
-rewind (Tape l r) = Tape [] $ reverse l ++ r
-
-moveRight :: Tape a -> Tape a
-moveRight (Tape l (x:xs)) = Tape (x:l) xs
-moveRight (Tape _ []) = error "Tape already at right."
-
-moveRightBy :: Tape a -> Int -> Tape a
-moveRightBy tape dist = List.foldl' (\t _ -> moveRight t) tape [1..dist]
-
-moveRightMatching :: (Eq a) => [a] -> Tape a -> Tape a
-moveRightMatching x t@(Tape _ r) =
-  moveRightBy t $ length $ takeWhile (uncurry (==)) $ zip x r
-
-moveLeft :: Tape a -> Tape a
-moveLeft (Tape (x:xs) r) = Tape xs (x:r)
-moveLeft (Tape [] _) = error "Tape already at left."
+isAtEnd :: Tape a -> Bool
+isAtEnd = null . tRight
 
 tapeHead :: Tape a -> [a]
-tapeHead (Tape _ r) = r
+tapeHead = tRight
 
 tapeHeadLeft :: Tape a -> [a]
-tapeHeadLeft (Tape l _) = reverse l
+tapeHeadLeft = reverse . tLeft
 
--- Place list onto tape, leaving head just past last element
-appendHead :: Show a => Tape a -> [a] -> Tape a
-appendHead (Tape l r) list = Tape (foldr (:) l list) r
+rewind :: Tape a -> Tape a
+rewind t = Tape [] $ tapeHeadLeft t ++ tRight t
+
+mapRight :: (a -> a) -> Tape a -> Tape a
+mapRight f t = t { tRight = map f $ tRight t }
+
+moveRight :: Tape a -> TapeMonad a
+moveRight t
+  | isAtEnd t = throwError "Tape already at right."
+  | otherwise = return $ Tape (x:l) xs
+  where l = tLeft t
+        (x:xs) = tRight t
+
+moveRightBy :: Tape a -> Int -> TapeMonad a
+moveRightBy tape dist = foldM (\t _ -> moveRight t) tape [1..dist]
+
+moveRightMatching :: (Eq a) => [a] -> Tape a -> TapeMonad a
+moveRightMatching x t =
+  foldM (\t _ -> moveRight t) t $ takeWhile (uncurry (==)) $ zip x $ tRight t
+
+moveLeft :: Tape a -> TapeMonad a
+moveLeft t
+  | isAtStart t = throwError "Tape already at left."
+  | otherwise = return $ Tape xs (x:r)
+  where r = tRight t
+        (x:xs) = tLeft t
+

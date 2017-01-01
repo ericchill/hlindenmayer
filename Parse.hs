@@ -1,24 +1,23 @@
 module Parse (
   LSystem(..),
+  LSystemError(..),
   parseRuleFile,
-  getOption,
-  getFloatOption,
-  getIntOption,
   module Grammar,
+  module LSystem
   )
 where
-import Debug.Trace
+import LSystem
 import Metagrammar
 import Grammar
 import RuleSpec
 import Turtle (TAction, encodeActions, Turt)
+import Utils
 import Prelude hiding (lookup, null)
-import Control.Monad
 import Data.Char (isSpace)
-import Data.List (foldl', isPrefixOf, null, stripPrefix)
+import Data.List (isInfixOf, isPrefixOf, null, stripPrefix)
 import Data.Maybe (fromJust, fromMaybe)
 import Data.String.Utils
-import Data.Map.Strict (Map, empty, insert, lookup)
+import qualified Data.Map.Strict as Map
 
 {-
   rule
@@ -42,50 +41,11 @@ metagrammar toIgnore = Metagrammar
   (== '%')
   "()[]*"
 
-data LSystem a b = LSystem {
-  lOptions     :: Map String String,
-  lMacros      :: Map String [TAction a],
-  lGrammar     :: Grammar b,
-  lAxiom       :: [b]
-  } -- deriving (Show)
-
-parseRuleFile :: Turt a => String -> Either String (LSystem a Char)
+parseRuleFile :: Turt a => String -> LSystemError a Char
 parseRuleFile text =
-  foldM addLineToSystem emptySystem $ filterComments $ lines text
-
-addOption :: Turt a => String -> String -> LSystem a b -> LSystem a b
-addOption k v (LSystem o m g a) = LSystem (insert k v o) m g a
-
-getOption :: Turt a => LSystem a b -> String -> String -> String
-getOption sys key dflt =
-  fromMaybe dflt $ lookup key $ lOptions sys
-
-getFloatOption :: Turt a => LSystem a b -> String -> Float -> Float
-getFloatOption sys key dflt =
-  case lookup key $ lOptions sys of
-    Just value -> read value
-    Nothing    -> dflt
-
-getIntOption :: (Turt a, Ord b) => LSystem a b -> String -> Int -> Int
-getIntOption sys key dflt =
-  case lookup key $ lOptions sys of
-    Just value -> read value
-    Nothing    -> dflt
-
-addMacro :: Turt a => String -> String -> LSystem a b -> Either String (LSystem a b)
-addMacro k v (LSystem o m g a) =
-  case encodeActions v of
-    Right actions -> Right $ LSystem o (insert k actions m) g a
-    Left err -> Left err
-
-setAxiom :: (Turt a, Show b) => [b] -> LSystem a b -> LSystem a b
-setAxiom a (LSystem opt mac gram _) = LSystem opt mac gram a
-
-setGrammar :: Turt a => Grammar b -> LSystem a b -> LSystem a b
-setGrammar a (LSystem opt mac _ ax) = LSystem opt mac a ax
-
-emptySystem :: Turt a => LSystem a Char
-emptySystem = LSystem empty empty (newGrammar $ metagrammar "") ""
+  foldM addLineToSystem
+        (emptySystem $ metagrammar "")
+        (filterComments $ lines text)
 
 filterComments :: [String] -> [String]
 filterComments ls =
@@ -98,68 +58,55 @@ filterComments ls =
   filter (not . ("--" `isPrefixOf`)) $
   filter (not.null) $ map strip ls
 
-addLineToSystem :: Turt a => LSystem a Char -> String -> Either String (LSystem a Char)
-addLineToSystem sys [] = Right sys
+addLineToSystem :: Turt a => LSystem a Char -> String -> LSystemError a Char
+addLineToSystem sys [] = return sys
 addLineToSystem sys line
-  | ':' `elem` line = addParam line sys
-  | otherwise       = addRule line sys
+  | "-->" `isInfixOf` line = addParam line sys
+  | ':' `elem` line        = addRule line sys
+  | otherwise = throwError $ "Don't know what to do with: " ++ line
 
-addParam :: Turt a => String -> LSystem a Char -> Either String (LSystem a Char)
+addParam :: Turt a => String -> LSystem a Char -> LSystemError a Char
 addParam line sys
-  | "axiom:" `isPrefixOf` line =
-    Right $ setAxiom (argFor "axiom:") sys
-  | "define:" `isPrefixOf` line =
-    let (name, def) = break isSpace $ argFor "define:"
-    in
-      addMacro name (strip def) sys
-  | "delta:" `isPrefixOf` line =
-    Right $ addOption "delta" (argFor "delta:") sys
-  | "ignore:" `isPrefixOf` line =
-    Right $ setIgnore (argFor "ignore:") sys
-  | "iterate:" `isPrefixOf` line =
-    Right $ addOption "iterate" (argFor "iterate:") sys
-  | "stepRatio:" `isPrefixOf` line =
-    Right $ addOption "stepRatio" (argFor "stepRatio:") sys
-  | otherwise = Right sys
-  where argFor = cleanArgument line
+  | name == "axiom"  = return $ setAxiom def sys
+  | name == "define" = addMacro name def sys
+  | null name        = throwError $ "Malformed option: " ++ line
+  | otherwise        = return $ addOption name def sys
+  where name = strip $ takeWhile (':' /=) line
+        def = strip $ tail $ dropWhile (':' /=) line
 
-cleanArgument :: String -> String -> String
-cleanArgument str argName = strip $ fromJust $ stripPrefix argName str
-
-setIgnore :: Turt a => String -> LSystem a Char -> LSystem a Char
-setIgnore toIgnore sys =
-  setGrammar (setMetagrammar (metagrammar toIgnore) $ lGrammar sys) sys
-
-addRule :: Turt a => String -> LSystem a Char -> Either String (LSystem a Char)
+addRule :: Turt a => String -> LSystem a Char -> LSystemError a Char
 addRule line sys =
-  case parseRule (getMetagrammar $ lGrammar sys) line of
-    Just specAndProd -> Right $ setGrammar (addRuleFromSpec specAndProd $ lGrammar sys) sys
-    Nothing -> Right sys
+  do
+    specAndProd <- parseRule (getMetagrammar $ lGrammar sys) line
+    return $ setGrammar (addRuleFromSpec specAndProd $ lGrammar sys) sys
 
-parseRule :: Metagrammar Char -> String -> Maybe (RuleSpec Char, String)
+parseRule :: Metagrammar Char -> String -> ErrorM (RuleSpec Char, String)
 parseRule meta input
   | length sides == 2 =
-    if null specStr then Nothing
-    else Just (parseRuleSpec meta specStr, strip prodStr)
-  | otherwise = Nothing
+    if null specStr then throwError $ "boo! input is " ++ input
+    else do
+      spec <- parseRuleSpec meta specStr
+      return (spec, strip prodStr)
+  | otherwise = throwError $ "boo2! input is " ++ input
   where sides = split "-->" input
         specStr = head sides
         prodStr = sides !! 1
 
-parseRuleSpec :: Metagrammar Char -> String -> RuleSpec Char
-parseRuleSpec meta [] = error "Empty RuleSpec string."
+parseRuleSpec :: Metagrammar Char -> String -> ErrorM (RuleSpec Char)
+parseRuleSpec meta [] = throwError "Empty RuleSpec string."
 parseRuleSpec meta str
   | 2 == length pieces = parseRuleSpec2 meta ((reverse . head) pieces) $ pieces !! 1
   | otherwise          = parseRuleSpec2 meta "*" $ head pieces
   where pieces = map strip $ split "<" str
 
-parseRuleSpec2 :: Metagrammar Char -> String -> String -> RuleSpec Char
+parseRuleSpec2 :: Metagrammar Char -> String -> String -> ErrorM (RuleSpec Char)
 parseRuleSpec2 meta _ [] = error "No RuleSpec after left constraint"
 parseRuleSpec2 meta left str
   | 2 == length pieces = case head pieces of
-      "" -> error "No center element in RuleSpec."
-      center  -> case tail pieces of
-        [""]    -> error "Empty right constraint in RuleSpec."
-        right   -> RuleSpec meta left center $ head right
-  | otherwise = RuleSpec meta left str "*"
+      "" -> throwError "No center element in RuleSpec."
+      center -> case tail pieces of
+                  [""]  -> throwError "Empty right constraint in RuleSpec."
+                  right -> return $ RuleSpec meta left center $ head right
+  -- TODO add case for left side only that specifies deletion
+  | otherwise = return $ RuleSpec meta left str "*"
   where pieces = map strip $ split ">" str

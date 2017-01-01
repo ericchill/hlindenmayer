@@ -1,5 +1,6 @@
 module Metagrammar (
   Metagrammar(..),
+  testMeta,
   lcondiff,
   rcondiff,
   skipLeft,
@@ -9,6 +10,8 @@ module Metagrammar (
 where
 import Utils
 import Tape
+import Control.Applicative
+import Control.Monad
 
 data Metagrammar a = Metagrammar {
   isOpenBracket  :: a -> Bool,
@@ -27,57 +30,68 @@ instance Eq a => Eq (Metagrammar a) where
 instance Show a => Show (Metagrammar a) where
   show a = "(Metagrammar " ++ show (rsSig a) ++ ")"
 
-lcondiff :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> Bool
-lcondiff _ [] _ = True
-lcondiff meta s@(x:xs) tape
-  | isIgnored meta h      = justMove
-  | isOpenBracket meta h  = justMove
-  | isCloseBracket meta h = lcondiff meta s (skipLeft meta tape)
-  | h /= x                = False
-  | otherwise             = justMove
+testMeta :: a -> Metagrammar a
+testMeta forType =
+  let cf = const False
+      cf2 = const (const False)
+  in
+  Metagrammar cf cf cf2 cf cf cf cf [forType]
+
+lcondiff :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> BoolMonad
+lcondiff _ [] _ = return True
+lcondiff meta s@(x:xs) tape =
+  selectE diffNext [
+      (isIgnored meta <$> h     , diffNext),
+      (isOpenBracket meta <$> h , diffNext),
+      (isCloseBracket meta <$> h,
+          skipLeft meta tape >>= lcondiff meta s),
+      ((x /=) <$> h             , return False)]
   where  t' = moveLeft tape
-         h = head $ tapeHead t'
-         justMove = lcondiff meta xs t'
-
-rcondiff :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> Bool
-rcondiff _ [] _ = True
-rcondiff meta s@(x:xs) tape
-  | isIgnored meta h     = justMove
-  | isOpenBracket meta x = rcondiff meta s (skipRight meta tape)
-  | h /= x               = False
-  | otherwise            = justMove
-  where t' = moveRight tape
-        h = head $ tapeHead t'
-        justMove = rcondiff meta xs t'
-  
--- For a string starting with a balanced delimiter, skip past the closing item.
-skipRight :: Eq a => Metagrammar a -> Tape a -> Tape a
-skipRight _ (Tape _ []) = error "Already at end in skipRight"
-skipRight meta tape = skipRightRec meta tape [(head . tapeHead) tape]
-
-skipRightRec :: Eq a => Metagrammar a -> Tape a -> [a] -> Tape a
-skipRightRec _ xs [] = xs
-skipRightRec _ (Tape _ []) _ = error "skipRight: Missing closing delimiter."
-skipRightRec meta tape delimStack@(d:ds)
-  | closesBracket meta x d = skipRightRec meta tape' ds
-  | isOpenBracket meta x   = skipRightRec meta tape' (x:ds)
-  | otherwise                = skipRightRec meta tape' delimStack
-  where
-    tape' = moveRight tape
-    x = (head . tapeHead) tape
+         h = head . tapeHead <$> t'
+         diffNext = join $ lcondiff meta xs <$> t'
 
 -- Leave head right before closing item
-skipLeft :: Eq a => Metagrammar a -> Tape a -> Tape a
-skipLeft _ (Tape _ []) = error "Already at end in skipLeft"
-skipLeft meta tape = skipLeftRec meta tape [(head . tapeHead) tape]  -- ???? off by one?
+skipLeft :: Eq a => Metagrammar a -> Tape a -> TapeMonad a
+skipLeft meta t
+  | isAtStart t = error "Already at end in skipLeft"
+  | otherwise =
+      skipLeftRec meta [(head . tapeHead) t] t -- ???? off by one?
 
-skipLeftRec :: Eq a => Metagrammar a -> Tape a -> [a] -> Tape a
-skipLeftRec _ xs [] = xs
-skipLeftRec _ (Tape _ []) _ = error "skipLeft: Missing opening delimiter."
-skipLeftRec meta tape delimStack@(d:ds)
-  | closesBracket meta d x = skipLeftRec meta tape' ds
-  | isCloseBracket meta x  = skipLeftRec meta tape' (x:ds)
-  | otherwise                = skipLeftRec meta tape' delimStack
+skipLeftRec :: Eq a => Metagrammar a -> [a] -> Tape a -> TapeMonad a
+skipLeftRec _ [] xs = return xs
+skipLeftRec meta delimStack@(d:ds) tape
+  | isAtStart tape = throwError "skipLeft: Missing opening delimiter."
+  | closesBracket meta d x   = tape' >>= skipLeftRec meta ds
+  | isCloseBracket meta x    = tape' >>= skipLeftRec meta (x:ds)
+  | otherwise                = tape' >>= skipLeftRec meta delimStack
   where tape' = moveLeft tape
         x = (head . tapeHead) tape
 
+rcondiff :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> BoolMonad
+rcondiff _ [] _ = return True
+rcondiff meta s@(x:xs) tape =
+  selectE diffNext [
+     (isIgnored meta <$> h , diffNext),
+     (isOpenBracket meta <$> h ,
+        skipRight meta tape >>= rcondiff meta s),
+     ((x /=) <$> h           , return False)]
+  where t' = moveRight tape
+        h = (head . tapeHead) <$> t'
+        diffNext = t' >>= rcondiff meta xs
+  
+-- For a string starting with a balanced delimiter, skip past the closing item.
+skipRight :: Eq a => Metagrammar a -> Tape a -> TapeMonad a
+skipRight meta tape
+  | isAtEnd tape = throwError "Already at end in skipRight"
+  | otherwise = skipRightRec meta [(head . tapeHead) tape] tape
+
+skipRightRec :: Eq a => Metagrammar a -> [a] -> Tape a -> TapeMonad a
+skipRightRec _ [] xs = return xs
+skipRightRec meta delimStack@(d:ds) tape
+  | isAtEnd tape = throwError "skipRight: Missing closing delimiter."
+  | closesBracket meta x d = tape' >>= skipRightRec meta ds
+  | isOpenBracket meta x   = tape' >>= skipRightRec meta (x:ds)
+  | otherwise = tape' >>= skipRightRec meta delimStack
+  where
+    tape' = moveRight tape
+    x = (head . tapeHead) tape
