@@ -29,11 +29,11 @@ matchSpec :: (Eq a, Show a) => RuleSpec a -> Tape a -> BoolMonad
 matchSpec spec@(RuleSpec meta l p r) tape =
     pure (isPrefixOfIgnoring meta p $ tapeHead tape) &&&&
     (if wild l then return True else lcondiff meta l tape) &&&&
-    (if wild r then return True else rcondiff meta r tape) `catchError`
-    appendError ("matchSpec " ++ show l ++ " < " ++ show p ++ " > " ++ show r)
+    (if wild r then return True else rcondiff meta r tape)
+    `amendE` ("matchSpec " ++ show l ++ " < " ++ show p ++ " > " ++ show r)
     where wild = isWild meta . head
 
-matchSpecExact :: Eq a => RuleSpec a -> RuleSpec a -> Bool
+matchSpecExact :: (Eq a) => RuleSpec a -> RuleSpec a -> Bool
 matchSpecExact a b
   | pa /= pb = False
   | if null la then notWild lb else la /= lb = False

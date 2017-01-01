@@ -28,20 +28,22 @@ import qualified Data.Map.Strict as Map
 -}
 
 metagrammar :: String -> Metagrammar Char
-metagrammar toIgnore = Metagrammar
-  (`elem` "([")
-  (`elem` ")]")
-  (\a b -> case a of
-      '(' -> b == ')'
-      '[' -> b == ']'
-      _   -> False)
-  isSpace
-  (`elem` toIgnore)
-  (== '*')
-  (== '%')
-  "()[]*"
+metagrammar toIgnore = Metagrammar {
+  isOpenBracket  = (`elem` "(["),
+  isCloseBracket = (`elem` ")]"),
+  closesBracket  = \a b ->
+      case a of
+        '(' -> b == ')'
+        '[' -> b == ']'
+        _   -> False,
+  isBlank        = isSpace,
+  isIgnored      = (`elem` toIgnore),
+  isWild         = (== '*'),
+  isSkipBalanced = (== '%'),
+  rsSig          = "()[]*"
+  }
 
-parseRuleFile :: Turt a => String -> LSystemError a Char
+parseRuleFile :: (Turt a) => String -> LSystemError a Char
 parseRuleFile text =
   foldM addLineToSystem
         (emptySystem $ metagrammar "")
@@ -58,54 +60,57 @@ filterComments ls =
   filter (not . ("--" `isPrefixOf`)) $
   filter (not.null) $ map strip ls
 
-addLineToSystem :: Turt a => LSystem a Char -> String -> LSystemError a Char
+addLineToSystem :: (Turt a) => LSystem a Char -> String -> LSystemError a Char
 addLineToSystem sys [] = return sys
 addLineToSystem sys line
-  | "-->" `isInfixOf` line = addParam line sys
-  | ':' `elem` line        = addRule line sys
-  | otherwise = throwError $ "Don't know what to do with: " ++ line
+  | "-->" `isInfixOf` line = addRule line sys
+  | ':' `elem` line        = addParam line sys
+  | otherwise = throwE $ "Don't know what to do with: " ++ line
 
-addParam :: Turt a => String -> LSystem a Char -> LSystemError a Char
+addParam :: (Turt a) => String -> LSystem a Char -> LSystemError a Char
 addParam line sys
   | name == "axiom"  = return $ setAxiom def sys
   | name == "define" = addMacro name def sys
-  | null name        = throwError $ "Malformed option: " ++ line
+  | null name        = throwE $ "Malformed option: " ++ line
   | otherwise        = return $ addOption name def sys
   where name = strip $ takeWhile (':' /=) line
         def = strip $ tail $ dropWhile (':' /=) line
 
-addRule :: Turt a => String -> LSystem a Char -> LSystemError a Char
+addRule :: (Turt a) => String -> LSystem a Char -> LSystemError a Char
 addRule line sys =
   do
-    specAndProd <- parseRule (getMetagrammar $ lGrammar sys) line
+    specAndProd <- parseRule (getMetagrammar $ lGrammar sys)
+      (trace' ("addRule " ++ line) line)
     return $ setGrammar (addRuleFromSpec specAndProd $ lGrammar sys) sys
 
 parseRule :: Metagrammar Char -> String -> ErrorM (RuleSpec Char, String)
 parseRule meta input
   | length sides == 2 =
-    if null specStr then throwError $ "boo! input is " ++ input
+    if null specStr then throwE $ "parseRule input is " ++ input
     else do
       spec <- parseRuleSpec meta specStr
       return (spec, strip prodStr)
-  | otherwise = throwError $ "boo2! input is " ++ input
+  | otherwise = throwE $ "parseRule2 input is " ++ input
   where sides = split "-->" input
         specStr = head sides
         prodStr = sides !! 1
 
 parseRuleSpec :: Metagrammar Char -> String -> ErrorM (RuleSpec Char)
-parseRuleSpec meta [] = throwError "Empty RuleSpec string."
+parseRuleSpec meta [] = throwE "Empty RuleSpec string."
 parseRuleSpec meta str
-  | 2 == length pieces = parseRuleSpec2 meta ((reverse . head) pieces) $ pieces !! 1
-  | otherwise          = parseRuleSpec2 meta "*" $ head pieces
+  | 2 == length pieces =
+      parseRuleSpec2 meta ((reverse . head) pieces) $ pieces !! 1
+  | otherwise =
+      parseRuleSpec2 meta "*" $ head pieces
   where pieces = map strip $ split "<" str
 
 parseRuleSpec2 :: Metagrammar Char -> String -> String -> ErrorM (RuleSpec Char)
 parseRuleSpec2 meta _ [] = error "No RuleSpec after left constraint"
 parseRuleSpec2 meta left str
   | 2 == length pieces = case head pieces of
-      "" -> throwError "No center element in RuleSpec."
+      "" -> throwE "No center element in RuleSpec."
       center -> case tail pieces of
-                  [""]  -> throwError "Empty right constraint in RuleSpec."
+                  [""]  -> throwE "Empty right constraint in RuleSpec."
                   right -> return $ RuleSpec meta left center $ head right
   -- TODO add case for left side only that specifies deletion
   | otherwise = return $ RuleSpec meta left str "*"

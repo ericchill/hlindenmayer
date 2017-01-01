@@ -44,18 +44,15 @@ tapeHeadLeft = reverse . tLeft
 rewind :: Tape a -> Tape a
 rewind t = Tape [] $ tapeHeadLeft t ++ tRight t
 
-mapRight :: (a -> a) -> Tape a -> Tape a
-mapRight f t = t { tRight = map f $ tRight t }
-
 moveRight :: Tape a -> TapeMonad a
 moveRight t
-  | isAtEnd t = throwError "Tape already at right."
+  | isAtEnd t = throwE "Tape already at right."
   | otherwise = return $ Tape (x:l) xs
   where l = tLeft t
         (x:xs) = tRight t
 
-moveRightBy :: Tape a -> Int -> TapeMonad a
-moveRightBy tape dist = foldM (\t _ -> moveRight t) tape [1..dist]
+moveRightBy :: Tape a -> [b] -> TapeMonad a
+moveRightBy = foldM (\t _ -> moveRight t)
 
 moveRightMatching :: (Eq a) => [a] -> Tape a -> TapeMonad a
 moveRightMatching x t =
@@ -63,8 +60,7 @@ moveRightMatching x t =
 
 moveLeft :: Tape a -> TapeMonad a
 moveLeft t
-  | isAtStart t = throwError "Tape already at left."
+  | isAtStart t = throwE "Tape already at left."
   | otherwise = return $ Tape xs (x:r)
   where r = tRight t
         (x:xs) = tLeft t
-

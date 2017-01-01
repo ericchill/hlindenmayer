@@ -6,8 +6,8 @@ delta: 15
 stepRatio: .95
 iterate: 20
 save: bamboo.turtle
-define: L [p(1)^^-F(.5)+F(.5)+F(.5)-|-F(.5)+F(.5)+F(.5)]
 define: M [-~L][////////-~L][\\\\\\\\-~L]
+define: L [p(1)^^-F(.5)+F(.5)+F(.5)-|-F(.5)+F(.5)+F(.5)]
 define: C [p(1)^^F(2)[+&&~L][-&&~L]&&~L]
 --define: L [p(1)[+&F][-&F]^F[+&F][-&F]^F[+&F][-&F]^F[+&F][-&F]^F[+&F][-&F]^F^F[+&F][-&F]^F]
 axiom: g0X
@@ -16,8 +16,8 @@ B --> C0~M
 C0 --> C2
 C2 --> C1
 C1 --> [++/X]N
-C1 --> [--/X]
-C1 -->
+--C1 --> [--/X]
+--C1 -->
 N < ~M -->
 N -->
 g0 --> g1

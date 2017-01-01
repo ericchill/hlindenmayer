@@ -9,14 +9,12 @@ module Utils (
   StringArg(..),
   stringConst,
   getStringArg,
-  traceIf,
   module Error,
   module Control.Applicative,
   )
   where
 import Error
 import Control.Applicative
-import Debug.Trace
 
 {-
 > caseM [(m Bool, a)] default
@@ -29,13 +27,13 @@ caseM (c:cs) def =
                 if test then action
                 else caseM cs def)
 
-(&&&&) :: Applicative m => m Bool -> m Bool -> m Bool
+(&&&&) :: (Applicative m) => m Bool -> m Bool -> m Bool
 (&&&&) = liftA2 (&&)
 
-(||||) :: Applicative m => m Bool -> m Bool -> m Bool
+(||||) :: (Applicative m) => m Bool -> m Bool -> m Bool
 (||||) = liftA2 (||)
 
-lNot :: Applicative m => m Bool -> m Bool
+lNot :: (Applicative m) => m Bool -> m Bool
 lNot = liftA not
 
 
@@ -64,7 +62,3 @@ stringConst = StringConst
 getStringArg :: StringArg a -> a -> String
 getStringArg (StringVar f) = f
 getStringArg (StringConst s) = const s
-
-
-traceIf :: Bool -> String -> a -> a
-traceIf enable msg arg = if enable then trace msg arg else arg

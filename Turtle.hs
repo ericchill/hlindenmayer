@@ -37,13 +37,13 @@ data TAction a =
   InvokeMacro (StringArg a) |
   Noop deriving (Show)
 
-encodeActions :: Turt a => String -> ErrorM [TAction a]
+encodeActions :: (Turt a) => String -> ErrorM [TAction a]
 encodeActions s =
   do
     (_, actions) <- appendErrorT " in encodeActions" (encodeActionsRec s)
     return actions
 
-encodeActionsRec :: Turt a => String -> ErrorM (String, [TAction a])
+encodeActionsRec :: (Turt a) => String -> ErrorM (String, [TAction a])
 encodeActionsRec [] =
   do
     (_, action) <- encodeAction []
@@ -56,7 +56,7 @@ encodeActionsRec s =
 
 -- On error string is at error, otherwise it's after parsed action.
 -- Likely cause of future errors will be in parsing expressions as arguments.
-encodeAction :: Turt a => String -> ErrorM (String, TAction a)
+encodeAction :: (Turt a) => String -> ErrorM (String, TAction a)
 encodeAction [] = return ([], Noop)
 encodeAction s@(x:xs)
   | x == '['  = encodeBranch xs
@@ -73,7 +73,7 @@ encodeAction s@(x:xs)
   | x == '$'  = return (xs, ResetOrientation)
   | x == '~'  =
     if null xs then
-      throwError $ show (s, "Dangling macro invocation.")
+      throwE $ "Dangling macro invocation " ++ s
     else
       return (tail xs, InvokeMacro $ stringConst [head xs])
   | x == '\'' = return (xs, ShrinkPen $ floatConst 1)
@@ -81,15 +81,15 @@ encodeAction s@(x:xs)
   | x == 'p'  = return (xs, SetPenWidth $ floatConst 1)
   | otherwise = return (xs, Noop)
 
-encodeBranch :: Turt a => String -> ErrorM (String, TAction a)
+encodeBranch :: (Turt a) => String -> ErrorM (String, TAction a)
 encodeBranch s =
   do
     (rest, actions) <- encodeBranchRec s
     return (rest, Branch actions)
 
 -- Like encode actions, but expects a close bracket.
-encodeBranchRec :: Turt a => String -> ErrorM (String, [TAction a])
-encodeBranchRes [] = throwError "Oops, branch ran off end."
+encodeBranchRec :: (Turt a) => String -> ErrorM (String, [TAction a])
+encodeBranchRes [] = throwE "Oops, branch ran off end."
 encodeBranchRec s@(x:xs)
   | x == ']'  = return (xs, [])
   | otherwise =
@@ -116,7 +116,7 @@ class Turt a where
   getMacro         :: a -> StringArg a -> [TAction a]
   
   doAction :: a -> TAction a -> TurtleMonad a
-  doAction t (Branch actions) = foldActions actions t
+  doAction t (Branch actions) = foldActions actions t >> return t
   doAction t (DrawLine dt)    = drawLine t dt
   doAction t (DrawNoMark dt)  = drawLine t dt
   doAction t (Move dt)        = move t dt
@@ -175,7 +175,7 @@ class Turt a where
   invokeMacro tur arg = foldActions (getMacro tur arg) tur
 
 
-foldActions :: Turt a => [TAction a] -> a -> TurtleMonad a
+foldActions :: (Turt a) => [TAction a] -> a -> TurtleMonad a
 foldActions [] t = return t
 foldActions (x:xs) t = doAction t x >>= foldActions xs
 

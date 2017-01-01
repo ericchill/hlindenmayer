@@ -36,7 +36,7 @@ plotTurtle angle =
   
 showLine :: V3F -> V3F -> String
 showLine (V3 x1 y1 _) (V3 x2 y2 _) =
-  show x1 ++ " " ++ show y1 ++ "\n" ++ show x2 ++ " " ++ show y2
+  show x1 ++ " " ++ show y1 ++ "\n" ++ show x2 ++ " " ++ show y2 ++ "\n"
 
 instance Turt PlotTurtle where
   drawLine turtle arg =
@@ -44,7 +44,6 @@ instance Turt PlotTurtle where
       do
         moved <- move turtle arg
         (liftIO . putStrLn) $ showLine from $ tPos moved
-        (liftIO . putStrLn) ""
         return moved
 
   drawNoMark = drawLine

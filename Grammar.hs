@@ -18,7 +18,10 @@ import qualified Data.Map.Strict as Map
 
 type GramError a = ErrorM (Tape a, [[a]])
 
-data Grammar a = Grammar (Metagrammar a) (Map.Map [a] (LRule a)) deriving (Show)
+data Grammar a = Grammar {
+  gMeta  :: Metagrammar a,
+  gRules :: Map.Map [a] (LRule a)
+  } deriving (Show)
 
 newGrammar :: Metagrammar a -> Grammar a
 newGrammar meta = Grammar meta Map.empty
@@ -29,8 +32,7 @@ produce g s = produce' g $ newTape s
 produce' :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> ErrorM [a]
 produce' g tape
   | isAtEnd tape = return []
-  | otherwise =
-    do
+  | otherwise = do
       (tape', prod) <- produceOne g tape
       prod' <- produce' g tape'
       return $ head prod ++ prod'
@@ -39,46 +41,41 @@ produceOne :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> GramError a
 produceOne g@(Grammar meta _) tape =
   let
     fragment = "\"" ++ show (take 10 $ tapeHead tape) ++ "\""
-    justCopy =
-        do
-          tape' <- moveRight tape
-                   `catchError`
-                   appendError ("produceOne(justCopy) " ++ fragment)
-          return (tape', [[(head . tapeHead) tape]])
+    justCopy = do
+      tape' <- moveRight tape
+               `amendE` ("produceOne(justCopy) " ++ fragment)
+      return (tape', [[(head . tapeHead) tape]])
   in
     case tapeHead tape of
       [] -> return (tape, [[]])
       (x:_)
-        | isSkipBalanced meta x ->
-          do
+        | isSkipBalanced meta x -> do
             tape' <- (skipRight meta tape >>= moveRight)
-                     `catchError`
-                     appendError ("produceOne(isSkipBalanced) " ++ fragment)
+                     `amendE` ("produceOne(isSkipBalanced) " ++ fragment)
             return (tape', [[]])
         | isBlank meta x -> justCopy
         | otherwise ->
             case lookupRule tape g of
               Just (matched, mrule) ->
                 case mrule of
-                  Just rule ->
-                    do
-                      productions <- applyRule rule tape
-                      if null productions then justCopy
-                      else do
-                        tape' <- moveRightBy tape (length matched)
-                                 `catchError`
-                                 appendError ("produceOne(result) " ++ fragment)
-                        return (tape', productions)
+                  Just rule -> do
+                    productions <- applyRule rule tape
+                    if null productions then justCopy
+                    else do
+                      tape' <- moveRightBy tape matched
+                               `amendE` ("produceOne(result) " ++ fragment)
+                      return (tape', productions)
                   Nothing -> justCopy
               Nothing -> justCopy
 
 getMetagrammar :: Grammar a -> Metagrammar a
-getMetagrammar (Grammar meta _) = meta
+getMetagrammar  = gMeta
 
 setMetagrammar :: Metagrammar a -> Grammar a -> Grammar a
-setMetagrammar meta (Grammar _ rules) = Grammar meta rules
+setMetagrammar meta g = g { gMeta = meta }
 
-addRuleFromSpec :: (Ord a, Show a) => (RuleSpec a, [a]) -> Grammar a -> Grammar a
+addRuleFromSpec :: (Ord a, Show a) =>
+                   (RuleSpec a, [a]) -> Grammar a -> Grammar a
 addRuleFromSpec rule@(spec, production) (Grammar meta rules) =
   let pred = headCond spec
   in
@@ -94,7 +91,7 @@ lookupRule tape (Grammar _ rules) =
     Just matched -> Just (matched, Map.lookup matched rules)
     Nothing -> Nothing
 
-matchLongestPrefix :: Eq a => Tape a -> [[a]] -> Maybe [a]
+matchLongestPrefix :: (Eq a) => Tape a -> [[a]] -> Maybe [a]
 matchLongestPrefix tape prefixes =
   case
        filter (\a -> a `isPrefixOf` tapeHead tape) $
