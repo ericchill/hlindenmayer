@@ -11,22 +11,22 @@ import System.Environment
 
 type RunMonad = ExceptT String IO
 
-derive :: (Turt a, Eq b, Ord b, Show b) => LSystem a b -> [b] -> ErrorM [b]
+derive :: (Turt a, Eq b, Ord b, Show b) => LSystem a b -> [b] -> ErrorIO [b]
 derive sys = produce (lGrammar sys)
 
-deriveN :: (Turt a, Eq b, Ord b, Show b) => LSystem a b -> Int -> ErrorM [b]
+deriveN :: (Turt a, Eq b, Ord b, Show b) => LSystem a b -> Int -> ErrorIO [b]
 deriveN sys n = foldM (\i _ -> derive sys i) (lAxiom sys) [1..n]
 
-growPlant :: (Turt a) => LSystem a Char -> ErrorM String
+growPlant :: (Turt a) => LSystem a Char -> ErrorIO String
 growPlant sys = do
-  count <- getOption "iterate" 1 $ getOptions sys
+  count <- mapErrorM $ getOption "iterate" 1 $ getOptions sys
   deriveN sys count
 
 showResults :: String -> String -> ExceptT String IO ()
 showResults opt arg = do
   text <- liftIO $ readFile arg
   sys <- mapErrorM (parseRuleFile text)
-  plant <- mapErrorM (growPlant sys)
+  plant <- growPlant sys
   if "-g" == arg then
     liftIO $ putStrLn ("Final is " ++ plant)
   else do

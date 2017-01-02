@@ -3,12 +3,14 @@ module Utils (
   BoolMonad(..),
   caseM,
   (&&&&), (||||), lNot,
+  randomElement,
   module Error,
   module Control.Applicative,
   )
   where
 import Error
 import Control.Applicative
+import System.Random
 
 {-
 > caseM [(m Bool, a)] default
@@ -29,3 +31,8 @@ caseM (c:cs) def =
 
 lNot :: (Applicative m) => m Bool -> m Bool
 lNot = liftA not
+
+randomElement :: [a] -> ErrorIO a
+randomElement a = do
+  i <- liftIO $ getStdRandom (randomR(0, length a - 1))
+  return $ a !! i

@@ -9,7 +9,8 @@ module LSystem (
   addMacro,
   getMacros,
   setAxiom,
-  setGrammar
+  setGrammar,
+  setIgnore
   ) where
 import Grammar
 import Options
@@ -53,3 +54,6 @@ setAxiom a sys = sys { lAxiom  = a }
 
 setGrammar :: (Turt a, Show b) => Grammar b -> LSystem a b -> LSystem a b
 setGrammar g sys = sys { lGrammar = g }
+
+setIgnore :: (Turt a, Eq b) => [b] -> LSystem a b -> LSystem a b
+setIgnore x sys = sys { lGrammar = gSetIgnore x $ lGrammar sys }

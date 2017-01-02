@@ -1,5 +1,6 @@
 module Metagrammar (
   Metagrammar(..),
+  mSetIgnore,
   testMeta,
   lcondiff,
   rcondiff,
@@ -29,6 +30,9 @@ instance (Eq a) => Eq (Metagrammar a) where
 
 instance (Show a) => Show (Metagrammar a) where
   show a = "(Metagrammar " ++ show (rsSig a) ++ ")"
+
+mSetIgnore :: (Eq a) => [a] -> Metagrammar a -> Metagrammar a
+mSetIgnore a m = m { isIgnored = (`elem` a) }
 
 testMeta :: a -> Metagrammar a
 testMeta forType =

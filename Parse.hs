@@ -69,6 +69,7 @@ addParam :: (Turt a) => String -> LSystem a Char -> LSystemError a Char
 addParam line sys
   | name == "axiom"  = return $ setAxiom def sys
   | name == "define" = addMacro name def sys
+  | name == "ignore" = return $ setIgnore def sys
   | null name        = throwE $ "Malformed option: " ++ line
   | otherwise        = return $ addOption name def sys
   where name = strip $ takeWhile (':' /=) line

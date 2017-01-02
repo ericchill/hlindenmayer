@@ -3,6 +3,7 @@ module Grammar (
   newGrammar,
   getMetagrammar,
   setMetagrammar,
+  gSetIgnore,
   addRuleFromSpec,
   produceOne,
   produce,
@@ -26,16 +27,19 @@ data Grammar a = Grammar {
 newGrammar :: Metagrammar a -> Grammar a
 newGrammar meta = Grammar meta Map.empty
 
-produce :: (Eq a, Ord a, Show a) => Grammar a -> [a] -> ErrorM [a]
+produce :: (Eq a, Ord a, Show a) => Grammar a -> [a] -> ErrorIO [a]
 produce g s = produce' g $ newTape s
 
-produce' :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> ErrorM [a]
+produce' :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> ErrorIO [a]
 produce' g tape
   | isAtEnd tape = return []
   | otherwise = do
-      (tape', prod) <- produceOne g tape
+      (tape', prod) <- mapErrorM $ produceOne g tape
       prod' <- produce' g tape'
-      return $ head prod ++ prod'
+      chosen <- if 1 < length prod
+        then randomElement prod
+        else (return . head) prod
+      return $ chosen ++ prod'
     
 produceOne :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> GramError a
 produceOne g@(Grammar meta _) tape =
@@ -73,6 +77,9 @@ getMetagrammar  = gMeta
 
 setMetagrammar :: Metagrammar a -> Grammar a -> Grammar a
 setMetagrammar meta g = g { gMeta = meta }
+
+gSetIgnore :: (Eq a) => [a] -> Grammar a -> Grammar a
+gSetIgnore x g = g { gMeta = mSetIgnore x $ gMeta g }
 
 addRuleFromSpec :: (Ord a, Show a) =>
                    (RuleSpec a, [a]) -> Grammar a -> Grammar a
