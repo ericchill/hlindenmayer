@@ -18,7 +18,7 @@ import Linear.V3
 data PlotTurtle = PlotTurtle {
   tPos     :: TPosition,
   tOrient  :: TOrientation,  -- tOrient_x is speed
-  tPen     :: Float,
+  tPen     :: Double,
   tMacros  :: ActionMap PlotTurtle,
   tOptions :: OptionMap
   }
@@ -28,7 +28,6 @@ plotLSystem sys lString =
   do
     let options = getOptions sys
         macros  = getMacros sys
-    turnAngle <- mapErrorM $ getOption "delta" 30 options
     let turtle = plotTurtle macros options
     actions <- mapErrorM $ encodeActions lString
     foldActions actions turtle
@@ -59,13 +58,13 @@ instance Turt PlotTurtle where
 
   getPos = tPos
   
-  setPos t x = return $ t { tPos = x }
+  setPos t x = return $! t { tPos = x }
   
   getOrientation = tOrient
   
-  setOrientation t o = return $ t { tOrient = o }
+  setOrientation t o = return $! t { tOrient = o }
     
-  resetOrientation t = return $ t { tOrient = initialOrientation }
+  resetOrientation t = return $! t { tOrient = initialOrientation }
 
   getPenWidth = tPen
   
@@ -79,6 +78,11 @@ instance Turt PlotTurtle where
   getOpt t key def =
     case Map.lookup key $ tOptions t of
       Just str -> readM str
+      Nothing  -> return def
+
+  getDoubleOpt t key def =
+    case Map.lookup key $ tOptions t of
+      Just str -> readDoubleM str :: ErrorM Double
       Nothing  -> return def
 
 initialOrientation :: M33F

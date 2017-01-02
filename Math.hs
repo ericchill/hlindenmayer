@@ -16,12 +16,13 @@ import Linear.Quaternion
 import Linear.V3 as V3
 import Linear.Vector as V
 
-type V3F  = V3 Float
-type M33F = M33 Float
+type V3F  = V3 Double
+type M33F = M33 Double
 
-rotateMatrix :: M33F -> V3F -> Float -> M33F
+rotateMatrix :: M33F -> V3F -> Double -> M33F
 rotateMatrix mat axis angle =
-  mat !*! fromQuaternion (axisAngle axis (trace' (show angle) angle))
+  --mat !*! fromQuaternion (axisAngle axis (trace' (show angle) angle))
+  mat !*! fromQuaternion  (axisAngle axis angle)
 
 xAxis :: V3F
 xAxis = V3 1 0 0
@@ -32,5 +33,5 @@ yAxis = V3 0 1 0
 zAxis :: V3F
 zAxis = V3 0 0 1
 
-translateX :: M33F -> Float -> V3F -> V3F
+translateX :: M33F -> Double -> V3F -> V3F
 translateX m sx v = v + sx *^ (m ^. column _x)

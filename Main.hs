@@ -12,9 +12,7 @@ import System.Environment
 type RunMonad = ExceptT String IO
 
 derive :: (Turt a, Eq b, Ord b, Show b) => LSystem a b -> [b] -> ErrorM [b]
-derive sys axiom = do
-  foo <- produce (lGrammar sys) axiom
-  return $ trace' ("derive result is " ++ show foo) foo
+derive sys = produce (lGrammar sys)
 
 deriveN :: (Turt a, Eq b, Ord b, Show b) => LSystem a b -> Int -> ErrorM [b]
 deriveN sys n = foldM (\i _ -> derive sys i) (lAxiom sys) [1..n]

@@ -7,24 +7,25 @@ module Options (
   stringConst,
   getStringArg,
   getOption,
-  readM
+  readM,
+  readDoubleM
   ) where
 import Error
 import qualified Data.Map.Strict as Map
-import Data.String.Utils (maybeRead)
+import Text.Read
 
 type OptionMap = Map.Map String String
 
-data FloatArg a = FloatVar (a -> ErrorM Float) | FloatConst Float
+data FloatArg a = FloatVar (a -> ErrorM Double) | FloatConst Double
 
 instance Show (FloatArg a) where
   show (FloatVar _) = "FloatVar"
   show (FloatConst x) = show x
 
-floatConst :: Float -> FloatArg a
+floatConst :: Double -> FloatArg a
 floatConst = FloatConst
 
-getFloatArg :: FloatArg a -> a -> ErrorM Float
+getFloatArg :: FloatArg a -> a -> ErrorM Double
 getFloatArg (FloatVar f) = f
 getFloatArg (FloatConst x) = return . const x
 
@@ -49,6 +50,15 @@ getOption k def map =
 
 readM :: (Read a) => String -> ErrorM a
 readM a =
-  case maybeRead a of
+  case readMaybe a of
     Just b  -> return b
     Nothing -> throwE (a ++ " can't be parsed as desired type.")
+
+-- As I understand things, this case shouldn't need to be called out,
+-- but without it, I can't parse fractional numbers.
+readDoubleM :: String -> ErrorM Double
+readDoubleM a =
+  let x = readMaybe a :: Maybe Double in
+  case x of
+    Just b  -> return b
+    Nothing -> throwE ("\"" ++ a ++ "\" can't be parsed as a Double.")

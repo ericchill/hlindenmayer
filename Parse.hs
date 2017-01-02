@@ -77,8 +77,7 @@ addParam line sys
 addRule :: (Turt a) => String -> LSystem a Char -> LSystemError a Char
 addRule line sys =
   do
-    specAndProd <- parseRule (getMetagrammar $ lGrammar sys)
-      (trace' ("addRule " ++ line) line)
+    specAndProd <- parseRule (getMetagrammar $ lGrammar sys) line
     return $ setGrammar (addRuleFromSpec specAndProd $ lGrammar sys) sys
 
 parseRule :: Metagrammar Char -> String -> ErrorM (RuleSpec Char, String)

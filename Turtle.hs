@@ -111,14 +111,17 @@ class Turt a where
   getOrientation   :: a -> TOrientation
   setOrientation   :: a -> TOrientation -> TurtleMonad a
   resetOrientation :: a -> TurtleMonad a
-  getPenWidth      :: a -> Float
+  getPenWidth      :: a -> Double
   setPenWidth      :: a -> FloatArg a -> TurtleMonad a
 
   getMacro :: a -> StringArg a -> [TAction a]
   getOpt   :: (Read b) => a -> String -> b -> ErrorM b
+  getDoubleOpt   :: a -> String -> Double -> ErrorM Double
 
   getAngle :: FloatArg a
-  getAngle = FloatVar (\t -> getOpt t "delta" (pi / 6))
+  getAngle = FloatVar (\t -> do
+                          val <- getDoubleOpt t "delta" 90.0
+                          return $ val * pi / 180.0)
   
   doAction :: a -> TAction a -> TurtleMonad a
   doAction t (Branch actions) = foldActions actions t >> return t
