@@ -10,6 +10,7 @@ module Turtle (
   )
 where
 import Math
+import Options
 import Utils
 import Control.Monad
 import Linear.V3
@@ -63,19 +64,19 @@ encodeAction s@(x:xs)
   | x == 'F'  = return (xs, DrawLine $ floatConst 1)
   | x == 'G'  = return (xs, DrawNoMark $ floatConst 1)
   | x == 'f'  = return (xs, Move $ floatConst 1)
-  | x == '+'  = return (xs, TurnLeft $ floatConst 1)
-  | x == '-'  = return (xs, TurnRight $ floatConst 1)
-  | x == '&'  = return (xs, PitchDown $ floatConst 1)
-  | x == '^'  = return (xs, PitchUp $ floatConst 1)
-  | x == '\\' = return (xs, RollLeft $ floatConst 1)
-  | x == '/'  = return (xs, RollRight $ floatConst 1)
+  | x == '+'  = return (xs, TurnLeft getAngle)
+  | x == '-'  = return (xs, TurnRight getAngle)
+  | x == '&'  = return (xs, PitchDown getAngle)
+  | x == '^'  = return (xs, PitchUp getAngle)
+  | x == '\\' = return (xs, RollLeft getAngle)
+  | x == '/'  = return (xs, RollRight getAngle)
   | x == '|'  = return (xs, TurnAround)
   | x == '$'  = return (xs, ResetOrientation)
   | x == '~'  =
-    if null xs then
-      throwE $ "Dangling macro invocation " ++ s
-    else
-      return (tail xs, InvokeMacro $ stringConst [head xs])
+      if null xs then
+        throwE $ "Dangling macro invocation " ++ s
+      else
+        return (tail xs, InvokeMacro $ stringConst [head xs])
   | x == '\'' = return (xs, ShrinkPen $ floatConst 1)
   | x == '`'  = return (xs, GrowPen $ floatConst 1)
   | x == 'p'  = return (xs, SetPenWidth $ floatConst 1)
@@ -113,7 +114,11 @@ class Turt a where
   getPenWidth      :: a -> Float
   setPenWidth      :: a -> FloatArg a -> TurtleMonad a
 
-  getMacro         :: a -> StringArg a -> [TAction a]
+  getMacro :: a -> StringArg a -> [TAction a]
+  getOpt   :: (Read b) => a -> String -> b -> ErrorM b
+
+  getAngle :: FloatArg a
+  getAngle = FloatVar (\t -> getOpt t "delta" (pi / 6))
   
   doAction :: a -> TAction a -> TurtleMonad a
   doAction t (Branch actions) = foldActions actions t >> return t
@@ -135,12 +140,15 @@ class Turt a where
   doAction t _ = return t
 
   reorient :: a -> V3F -> FloatArg a -> TurtleMonad a
-  reorient tur axis arg =
-    setOrientation tur $ rotateMatrix (getOrientation tur) axis $ getFloatArg arg tur
+  reorient tur axis arg = do
+    angle <- mapErrorM $ getFloatArg arg tur
+    setOrientation tur $ rotateMatrix (getOrientation tur) axis angle
 
   reorientMinus :: a -> V3F -> FloatArg a -> TurtleMonad a
-  reorientMinus tur axis arg =
-    setOrientation tur $ rotateMatrix (getOrientation tur) axis $ - (getFloatArg arg tur)
+  reorientMinus tur axis arg = do
+    angle <- mapErrorM $ getFloatArg arg tur
+    setOrientation tur
+      $ rotateMatrix (getOrientation tur) axis (- angle)
     
   turnLeft :: a -> FloatArg a -> TurtleMonad a
   turnLeft tur = reorient tur zAxis
@@ -164,12 +172,14 @@ class Turt a where
   turnAround tur = reorient tur zAxis $ floatConst pi
 
   shrinkPen :: a -> FloatArg a -> TurtleMonad a
-  shrinkPen tur arg = setPenWidth tur $
-    floatConst $ getPenWidth tur - getFloatArg arg tur
+  shrinkPen tur arg = do
+    amt <- mapErrorM $ getFloatArg arg tur
+    setPenWidth tur $ floatConst $ getPenWidth tur - amt
   
   growPen :: a -> FloatArg a -> TurtleMonad a
-  growPen tur arg = setPenWidth tur $
-    floatConst $ getPenWidth tur + getFloatArg arg tur
+  growPen tur arg = do
+    amt <- mapErrorM $ getFloatArg arg tur
+    setPenWidth tur $ floatConst $ getPenWidth tur + amt
 
   invokeMacro :: a -> StringArg a -> TurtleMonad a
   invokeMacro tur arg = foldActions (getMacro tur arg) tur

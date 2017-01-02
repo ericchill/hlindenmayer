@@ -21,7 +21,7 @@ type M33F = M33 Float
 
 rotateMatrix :: M33F -> V3F -> Float -> M33F
 rotateMatrix mat axis angle =
-  mat !*! fromQuaternion (axisAngle axis angle)
+  mat !*! fromQuaternion (axisAngle axis (trace' (show angle) angle))
 
 xAxis :: V3F
 xAxis = V3 1 0 0

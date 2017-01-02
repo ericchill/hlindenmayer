@@ -2,23 +2,29 @@
 module LSystem (
   LSystem(..),
   LSystemError(..),
+  ActionMap,
   emptySystem,
   addOption,
-  getOption,
+  getOptions,
   addMacro,
+  getMacros,
   setAxiom,
   setGrammar
   ) where
 import Grammar
+import Options
 import Turtle
 import Utils
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust, fromMaybe)
 import Data.String.Utils
 
+type ActionMap a = Map.Map String [TAction a]
+type StringMap = Map.Map String String
+
 data LSystem a b = LSystem {
-  lOptions     :: Map.Map String String,
-  lMacros      :: (Turt a) => Map.Map String [TAction a],
+  lOptions     :: OptionMap,
+  lMacros      :: (Turt a) => ActionMap a,
   lGrammar     :: Grammar b,
   lAxiom       :: [b]
   }
@@ -31,16 +37,11 @@ emptySystem meta = LSystem Map.empty Map.empty (newGrammar meta) []
 addOption :: (Turt a) => String -> String -> LSystem a b -> LSystem a b
 addOption k v sys = sys { lOptions = Map.insert k v $ lOptions sys }
 
-getOpt' :: (Turt a) => LSystem a b -> String -> Maybe String
-getOpt' sys key = Map.lookup key $ lOptions sys
+getMacros :: (Turt a) => LSystem a b -> ActionMap a
+getMacros = lMacros
 
-getOption :: (Turt a, Read b) => LSystem a c -> String -> b -> ErrorM b
-getOption sys key dflt =
-  case getOpt' sys key of
-    Nothing -> return dflt
-    Just str -> case maybeRead str of
-      Just x -> return x
-      otherwise -> throwE $ str ++ " can't be parsed as desired type."
+getOptions :: LSystem a b -> OptionMap
+getOptions = lOptions
 
 addMacro :: (Turt a) => String -> String -> LSystem a b -> LSystemError a b
 addMacro k v sys = do

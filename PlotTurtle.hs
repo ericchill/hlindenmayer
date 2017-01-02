@@ -3,40 +3,45 @@ module PlotTurtle (
   plotLSystem,
   Turt
   ) where
+import Error
 import Math
 import Grammar
-import Turtle
+import LSystem
+import Options
 import Parse
+import Turtle
 import Utils
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Linear.V3
 
 data PlotTurtle = PlotTurtle {
-  tPos    :: TPosition,
-  tOrient :: TOrientation,  -- tOrient_x is speed
-  tAngle  :: Float,
-  tPen    :: Float,
-  tMacros :: Map.Map String [TAction PlotTurtle]
+  tPos     :: TPosition,
+  tOrient  :: TOrientation,  -- tOrient_x is speed
+  tPen     :: Float,
+  tMacros  :: ActionMap PlotTurtle,
+  tOptions :: OptionMap
   }
 
-plotLSystem :: LSystem PlotTurtle Char -> String -> ExceptT String IO () -- ErrorM (IO ())
+plotLSystem :: LSystem PlotTurtle Char -> String -> ErrorIO ()
 plotLSystem sys lString =
   do
-    let note = " in plotLSystem"
-    turnAngle <- mapErrorM (getOption sys "delta" 48 :: ErrorM Float)
-    let turtle = plotTurtle (pi / 180 * turnAngle) $ lMacros sys
-    actions <- mapErrorM (encodeActions lString)
+    let options = getOptions sys
+        macros  = getMacros sys
+    turnAngle <- mapErrorM $ getOption "delta" 30 options
+    let turtle = plotTurtle macros options
+    actions <- mapErrorM $ encodeActions lString
     foldActions actions turtle
     return ()
     
-plotTurtle :: Float -> Map.Map String [TAction PlotTurtle] -> PlotTurtle
-plotTurtle angle =
-  PlotTurtle (V3 0 0 0) initialOrientation angle 1
+plotTurtle :: ActionMap PlotTurtle -> OptionMap -> PlotTurtle
+plotTurtle =
+  PlotTurtle (V3 0 0 0) initialOrientation 1
   
 showLine :: V3F -> V3F -> String
 showLine (V3 x1 y1 _) (V3 x2 y2 _) =
-  show x1 ++ " " ++ show y1 ++ "\n" ++ show x2 ++ " " ++ show y2 ++ "\n"
+  show x1 ++ " " ++ show y1 ++ "\n"
+    ++ show x2 ++ " " ++ show y2 ++ "\n"
 
 instance Turt PlotTurtle where
   drawLine turtle arg =
@@ -48,29 +53,33 @@ instance Turt PlotTurtle where
 
   drawNoMark = drawLine
 
-  move tur@(PlotTurtle pos orient angle pen mac) arg =
-    return $ PlotTurtle (translateX orient (getFloatArg arg tur) pos) orient angle pen mac
+  move t arg = do
+    dist <- mapErrorM $ getFloatArg arg t
+    return $ t { tPos = translateX (tOrient t) dist $ tPos t }
 
   getPos = tPos
   
-  setPos (PlotTurtle _ orient angle pen mac) pos =
-    return $ PlotTurtle pos orient angle pen mac
+  setPos t x = return $ t { tPos = x }
   
   getOrientation = tOrient
   
-  setOrientation (PlotTurtle pos _ angle pen mac) orient =
-    return $ PlotTurtle pos orient angle pen mac
+  setOrientation t o = return $ t { tOrient = o }
     
-  resetOrientation (PlotTurtle pos _ angle pen mac) =
-    return $ PlotTurtle pos initialOrientation angle pen mac
+  resetOrientation t = return $ t { tOrient = initialOrientation }
 
   getPenWidth = tPen
   
-  setPenWidth tur@(PlotTurtle pos orient angle _ mac) arg =
-    return $ PlotTurtle pos orient angle (getFloatArg arg tur) mac
+  setPenWidth t arg = do
+    width <- mapErrorM $ getFloatArg arg t
+    return $ t { tPen = width }
   
-  getMacro turtle arg =
-    fromMaybe [] $ Map.lookup (getStringArg arg turtle) $ tMacros turtle
+  getMacro t arg =
+    fromMaybe [] $ Map.lookup (getStringArg arg t) $ tMacros t
+
+  getOpt t key def =
+    case Map.lookup key $ tOptions t of
+      Just str -> readM str
+      Nothing  -> return def
 
 initialOrientation :: M33F
 initialOrientation =

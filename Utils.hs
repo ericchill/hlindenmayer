@@ -3,12 +3,6 @@ module Utils (
   BoolMonad(..),
   caseM,
   (&&&&), (||||), lNot,
-  FloatArg(..),
-  floatConst,
-  getFloatArg,
-  StringArg(..),
-  stringConst,
-  getStringArg,
   module Error,
   module Control.Applicative,
   )
@@ -35,30 +29,3 @@ caseM (c:cs) def =
 
 lNot :: (Applicative m) => m Bool -> m Bool
 lNot = liftA not
-
-
-data FloatArg a = FloatVar (a -> Float) | FloatConst Float
-
-instance Show (FloatArg a) where
-  show (FloatVar _) = "FloatVar"
-  show (FloatConst x) = show x
-
-floatConst :: Float -> FloatArg a
-floatConst = FloatConst
-
-getFloatArg :: FloatArg a -> a -> Float
-getFloatArg (FloatVar f) = f
-getFloatArg (FloatConst x) = const x
-
-data StringArg a = StringVar (a -> String) | StringConst String
-
-instance Show (StringArg a) where
-  show (StringVar _) = "StringVar"
-  show (StringConst s) = s
-
-stringConst :: String -> StringArg a
-stringConst = StringConst
-
-getStringArg :: StringArg a -> a -> String
-getStringArg (StringVar f) = f
-getStringArg (StringConst s) = const s

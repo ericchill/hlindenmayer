@@ -18,7 +18,9 @@ cabal-version:       >=1.10
 executable hlindenmayer
   main-is:             Main.hs
   other-modules:       Grammar,
+                       LSystem,
                        Math,
+                       Options,
                        Parse,
                        PlotTurtle,
                        Rule,
@@ -37,7 +39,8 @@ executable hlindenmayer
                        hxt >=9.3 && <9.4,
                        linear >= 1.20,
                        lens >= 4.13,
-                       mtl >= 2.2
-  -- hs-source-dirs:      
+                       mtl >= 2.2.1,
+                       transformers >= 0.4.2
+    -- hs-source-dirs:      
   default-language:    Haskell2010
   

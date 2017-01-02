@@ -1,9 +1,10 @@
 module Main where
 import Parse
 import Grammar
-import Utils
+import Options
 import PlotTurtle
 import Tape
+import Utils
 import Control.Monad
 import Data.List
 import System.Environment
@@ -20,7 +21,7 @@ deriveN sys n = foldM (\i _ -> derive sys i) (lAxiom sys) [1..n]
 
 growPlant :: (Turt a) => LSystem a Char -> ErrorM String
 growPlant sys = do
-  count <- getOption sys "iterate" 1
+  count <- getOption "iterate" 1 $ getOptions sys
   deriveN sys count
 
 showResults :: String -> String -> ExceptT String IO ()

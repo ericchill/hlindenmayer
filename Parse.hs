@@ -1,6 +1,4 @@
 module Parse (
-  LSystem(..),
-  LSystemError(..),
   parseRuleFile,
   module Grammar,
   module LSystem
