@@ -64,12 +64,12 @@ encodeAction s@(x:xs)
   | x == 'F'  = return (xs, DrawLine $ floatConst 1)
   | x == 'G'  = return (xs, DrawNoMark $ floatConst 1)
   | x == 'f'  = return (xs, Move $ floatConst 1)
-  | x == '+'  = return (xs, TurnLeft getAngle)
-  | x == '-'  = return (xs, TurnRight getAngle)
-  | x == '&'  = return (xs, PitchDown getAngle)
-  | x == '^'  = return (xs, PitchUp getAngle)
-  | x == '\\' = return (xs, RollLeft getAngle)
-  | x == '/'  = return (xs, RollRight getAngle)
+  | x == '+'  = return (xs, TurnLeft getAngle)  -- + z
+  | x == '-'  = return (xs, TurnRight getAngle) -- - z
+  | x == '&'  = return (xs, PitchDown getAngle) -- - y
+  | x == '^'  = return (xs, PitchUp getAngle)   -- y
+  | x == '\\' = return (xs, RollLeft getAngle)  -- - x
+  | x == '/'  = return (xs, RollRight getAngle) -- x
   | x == '|'  = return (xs, TurnAround)
   | x == '$'  = return (xs, ResetOrientation)
   | x == '~'  =
@@ -77,8 +77,8 @@ encodeAction s@(x:xs)
         throwE $ "Dangling macro invocation " ++ s
       else
         return (tail xs, InvokeMacro $ stringConst [head xs])
-  | x == '\'' = return (xs, ShrinkPen $ floatConst 1)
-  | x == '`'  = return (xs, GrowPen $ floatConst 1)
+  | x == '\'' = return (xs, ShrinkPen $ floatConst 1.2)
+  | x == '`'  = return (xs, GrowPen $ floatConst 1.2)
   | x == 'p'  = return (xs, SetPenWidth $ floatConst 1)
   | otherwise = return (xs, Noop)
 
@@ -160,7 +160,7 @@ class Turt a where
   turnRight tur = reorientMinus tur zAxis
 
   pitchDown :: a -> FloatArg a -> TurtleMonad a
-  pitchDown tur = reorient tur yAxis
+  pitchDown tur = reorientMinus tur yAxis
 
   pitchUp :: a -> FloatArg a -> TurtleMonad a
   pitchUp tur = reorient tur yAxis
@@ -177,12 +177,12 @@ class Turt a where
   shrinkPen :: a -> FloatArg a -> TurtleMonad a
   shrinkPen tur arg = do
     amt <- mapErrorM $ getFloatArg arg tur
-    setPenWidth tur $ floatConst $ getPenWidth tur - amt
+    setPenWidth tur $ floatConst $ getPenWidth tur / amt
   
   growPen :: a -> FloatArg a -> TurtleMonad a
   growPen tur arg = do
     amt <- mapErrorM $ getFloatArg arg tur
-    setPenWidth tur $ floatConst $ getPenWidth tur + amt
+    setPenWidth tur $ floatConst $ getPenWidth tur * amt
 
   invokeMacro :: a -> StringArg a -> TurtleMonad a
   invokeMacro tur arg = foldActions (getMacro tur arg) tur

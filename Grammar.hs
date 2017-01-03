@@ -14,7 +14,9 @@ import Utils
 import Metagrammar
 import Rule
 import Data.Foldable (toList)
+import Data.Function (on)
 import Data.List (isPrefixOf, sortBy)
+import Data.Maybe (fromJust)
 import qualified Data.Map.Strict as Map
 
 type GramError a = ErrorM (Tape a, [[a]])
@@ -34,43 +36,41 @@ produce' :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> ErrorIO [a]
 produce' g tape
   | isAtEnd tape = return []
   | otherwise = do
-      (tape', prod) <- mapErrorM $ produceOne g tape
+      (tape', prod) <- mapErrorM $! produceOne g tape
       prod' <- produce' g tape'
       chosen <- if 1 < length prod
-        then randomElement prod
-        else (return . head) prod
+                   then randomElement prod
+                   else (return . head) prod
       return $ chosen ++ prod'
     
 produceOne :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> GramError a
-produceOne g@(Grammar meta _) tape =
-  let
-    fragment = "\"" ++ show (take 10 $ tapeHead tape) ++ "\""
-    justCopy = do
-      tape' <- moveRight tape
-               `amendE` ("produceOne(justCopy) " ++ fragment)
-      return (tape', [[(head . tapeHead) tape]])
+produceOne g t =
+  let fragment = "\"" ++ show (take 10 $ tapeHead t) ++ "\""
+      meta = gMeta g
   in
-    case tapeHead tape of
-      [] -> return (tape, [[]])
+    case tapeHead t of
+      [] -> return (t, [[]])
       (x:_)
         | isSkipBalanced meta x -> do
-            tape' <- (skipRight meta tape >>= moveRight)
-                     `amendE` ("produceOne(isSkipBalanced) " ++ fragment)
-            return (tape', [[]])
-        | isBlank meta x -> justCopy
+            t' <- (skipRight meta t >>= moveRight)
+                  `amendE` ("produceOne(isSkipBalanced) " ++ fragment)
+            return (t', [[]])
+        | isBlank meta x -> justCopy t
         | otherwise ->
-            case lookupRule tape g of
-              Just (matched, mrule) ->
-                case mrule of
-                  Just rule -> do
-                    productions <- applyRule rule tape
-                    if null productions then justCopy
-                    else do
-                      tape' <- moveRightBy tape matched
-                               `amendE` ("produceOne(result) " ++ fragment)
-                      return (tape', productions)
-                  Nothing -> justCopy
-              Nothing -> justCopy
+            case lookupRule t g of
+              Just (matched, rule) -> do
+                productions <- applyRule rule t
+                if null productions then justCopy t
+                  else do
+                    t' <- moveRightBy t matched
+                          `amendE` ("produceOne(result) " ++ fragment)
+                    return (t', productions)
+              Nothing -> justCopy t
+
+justCopy :: Tape a -> GramError a
+justCopy t = do
+  t' <- moveRight t `amendE` "justCopy"
+  return (t', [[(head . tapeHead) t]])
 
 getMetagrammar :: Grammar a -> Metagrammar a
 getMetagrammar  = gMeta
@@ -91,11 +91,11 @@ addRuleFromSpec rule@(spec, production) (Grammar meta rules) =
       Just aRule ->
         Grammar meta $ Map.insert pred (addSuccessor rule aRule) rules
 
-lookupRule :: (Eq a, Ord a, Show a) => Tape a -> Grammar a ->
-              Maybe ([a], Maybe (LRule a))
+lookupRule :: (Eq a, Ord a, Show a) =>
+              Tape a -> Grammar a -> Maybe ([a], LRule a)
 lookupRule tape (Grammar _ rules) =
   case matchLongestPrefix tape $ Map.keys rules of
-    Just matched -> Just (matched, Map.lookup matched rules)
+    Just matched -> Just (matched, fromJust $ Map.lookup matched rules)
     Nothing -> Nothing
 
 matchLongestPrefix :: (Eq a) => Tape a -> [[a]] -> Maybe [a]
@@ -103,7 +103,8 @@ matchLongestPrefix tape prefixes =
   case
        filter (\a -> a `isPrefixOf` tapeHead tape) $
        -- TODO Cache lengths
-       sortBy (\a b -> length b `compare` length a) prefixes
+       sortBy (compare `on` length) prefixes
+--       sortBy (\a b -> length a `compare` length b) prefixes
   of
-    x@(_:_) -> Just $ last x
     [] -> Nothing
+    x  -> Just $ head x

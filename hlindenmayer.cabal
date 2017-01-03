@@ -34,6 +34,7 @@ executable hlindenmayer
   -- containers for Data.Map.Strict
   -- hxt for Data.AssocList    
   build-depends:       base >=4.8 && <4.9,
+                       cmdlib >= 0.3.6,
                        containers >=0.5 && <0.6,
                        hxt >=9.3 && <9.4,
                        lens >= 4.13,

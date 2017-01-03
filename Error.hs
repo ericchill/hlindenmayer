@@ -6,7 +6,7 @@ module Error (
   appendErrorT,
   mapErrorM,
   BoolMonad,
-  trace',
+  trace,
   module Control.Monad.Except,
   module Control.Monad.Identity
   )
@@ -14,7 +14,7 @@ module Error (
 import Control.Monad.Except
 import Control.Monad.Identity
 --import Control.Monad.Trans.Except as ExceptT (throwE, catchE)
-import Debug.Trace
+import qualified Debug.Trace as Trace
 
 --have things use this!
 type ErrorIO = ExceptT String IO
@@ -28,7 +28,7 @@ throwE = throwError
 
 amendE :: (Monad m) => ExceptT String m a -> String -> ExceptT String m a
 amendE m extra =
-  m `catchError` appendError (trace' extra extra)
+  m `catchError` appendError (trace extra extra)
   
 appendErrorT :: String -> ErrorM a -> ErrorM a
 appendErrorT a = withExceptT (++ a)
@@ -40,8 +40,8 @@ mapErrorM = mapExceptT (return . runIdentity)
 appendError :: (Monad m) => String -> String -> ExceptT String m a
 appendError err extra = throwError $ err ++ "; " ++ extra
 
-trace' :: String -> a -> a
-trace' msg arg = if traceOn then trace msg arg else arg
+trace :: String -> a -> a
+trace msg arg = if traceOn then Trace.trace msg arg else arg
 
 traceOn :: Bool
 traceOn = True

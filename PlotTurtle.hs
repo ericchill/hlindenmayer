@@ -25,29 +25,31 @@ data PlotTurtle = PlotTurtle {
 
 plotLSystem :: LSystem PlotTurtle Char -> String -> ErrorIO ()
 plotLSystem sys lString =
-  do
-    let options = getOptions sys
-        macros  = getMacros sys
-    let turtle = plotTurtle macros options
+  let options = getOptions sys
+      macros  = getMacros sys
+      turtle = plotTurtle macros options
+   in do
     actions <- mapErrorM $ encodeActions lString
     foldActions actions turtle
     return ()
     
 plotTurtle :: ActionMap PlotTurtle -> OptionMap -> PlotTurtle
-plotTurtle =
-  PlotTurtle (V3 0 0 0) initialOrientation 1
+plotTurtle = PlotTurtle (V3 0 0 0) initialOrientation 1
   
-showLine :: V3F -> V3F -> String
-showLine (V3 x1 y1 _) (V3 x2 y2 _) =
-  show x1 ++ " " ++ show y1 ++ "\n"
-    ++ show x2 ++ " " ++ show y2 ++ "\n"
+showLine :: V3F -> V3F -> Double -> String
+showLine p1 p2 p =
+  --show x1 ++ " " ++ show y1 ++ "\n" ++ show x2 ++ " " ++ show y2 ++ "\n"
+  "cylinder {" ++ showV3 p1 ++ "," ++ showV3 p2 ++ "," ++ show (p / 2.0)
+  ++ " texture{DMFWood1}}"
 
 instance Turt PlotTurtle where
-  drawLine turtle arg =
-    let from = tPos turtle in
+  drawLine t arg =
+    let from = tPos t
+        pen = max 0.1 $ tPen t
+    in
       do
-        moved <- move turtle arg
-        (liftIO . putStrLn) $ showLine from $ tPos moved
+        moved <- move t arg
+        (liftIO . putStrLn) $ showLine from (tPos moved) pen
         return moved
 
   drawNoMark = drawLine

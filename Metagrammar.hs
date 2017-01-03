@@ -50,6 +50,7 @@ testMeta forType =
     rsSig          = [forType]
     }
 
+-- Check left context
 lcondiff :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> BoolMonad
 lcondiff _ [] _ = return True
 lcondiff meta s@(x:xs) tape =
@@ -59,16 +60,15 @@ lcondiff meta s@(x:xs) tape =
       (isCloseBracket meta <$> h, skipLeft meta tape >>= lcondiff meta s),
       ((x /=) <$> h             , return False)]
       diffNext
-  where  t' = moveLeft tape
+  where  t' = moveLeft tape `amendE` "lcondiff"
          h = head . tapeHead <$> t'
          diffNext = join $ lcondiff meta xs <$> t'
 
 -- Leave head right before closing item
 skipLeft :: (Eq a) => Metagrammar a -> Tape a -> TapeMonad a
 skipLeft meta t
-  | isAtStart t = error "Already at end in skipLeft"
-  | otherwise =
-      skipLeftRec meta [(head . tapeHead) t] t -- ???? off by one?
+  | isAtStart t = throwE "Already at end in skipLeft"
+  | otherwise   = skipLeftRec meta [(head . tapeHead) t] t
 
 skipLeftRec :: (Eq a) => Metagrammar a -> [a] -> Tape a -> TapeMonad a
 skipLeftRec _ [] xs = return xs
@@ -77,9 +77,10 @@ skipLeftRec meta delimStack@(d:ds) tape
   | closesBracket meta d x   = tape' >>= skipLeftRec meta ds
   | isCloseBracket meta x    = tape' >>= skipLeftRec meta (x:ds)
   | otherwise                = tape' >>= skipLeftRec meta delimStack
-  where tape' = moveLeft tape
+  where tape' = moveLeft tape `amendE` "skipLeftRec"
         x = (head . tapeHead) tape
 
+-- Check right context
 rcondiff :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> BoolMonad
 rcondiff _ [] _ = return True
 rcondiff meta s@(x:xs) tape =
@@ -88,7 +89,7 @@ rcondiff meta s@(x:xs) tape =
      (isOpenBracket meta <$> h , skipRight meta tape >>= rcondiff meta s),
      ((x /=) <$> h             , return False)]
      diffNext
-  where t' = moveRight tape
+  where t' = moveRight tape `amendE` "rcondiff"
         h = (head . tapeHead) <$> t'
         diffNext = t' >>= rcondiff meta xs
   
@@ -106,5 +107,5 @@ skipRightRec meta delimStack@(d:ds) tape
   | isOpenBracket meta x   = tape' >>= skipRightRec meta (x:ds)
   | otherwise              = tape' >>= skipRightRec meta delimStack
   where
-    tape' = moveRight tape
+    tape' = moveRight tape `amendE` "skipRightRec"
     x = (head . tapeHead) tape
