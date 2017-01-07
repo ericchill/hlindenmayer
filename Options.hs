@@ -11,8 +11,9 @@ module Options (
   readDoubleM
   ) where
 import Error
+import Utils
 import qualified Data.Map.Strict as Map
-import Text.Read
+--import Text.Read
 
 type OptionMap = Map.Map String String
 
@@ -29,7 +30,7 @@ getFloatArg :: FloatArg a -> a -> ErrorM Double
 getFloatArg (FloatVar f) = f
 getFloatArg (FloatConst x) = return . const x
 
-data StringArg a = StringVar (a -> String) | StringConst String
+data StringArg a = StringVar (a -> ErrorM String) | StringConst String
 
 instance Show (StringArg a) where
   show (StringVar _) = "StringVar"
@@ -38,27 +39,12 @@ instance Show (StringArg a) where
 stringConst :: String -> StringArg a
 stringConst = StringConst
 
-getStringArg :: StringArg a -> a -> String
+getStringArg :: StringArg a -> a -> ErrorM String
 getStringArg (StringVar f) = f
-getStringArg (StringConst s) = const s
+getStringArg (StringConst s) = return . const s
   
 getOption :: (Read a) => String -> a -> OptionMap -> ErrorM a
 getOption k def map =
   case Map.lookup k map of
     Just str -> readM str
     Nothing  -> return def
-
-readM :: (Read a) => String -> ErrorM a
-readM a =
-  case readMaybe a of
-    Just b  -> return b
-    Nothing -> throwE (a ++ " can't be parsed as desired type.")
-
--- As I understand things, this case shouldn't need to be called out,
--- but without it, I can't parse fractional numbers.
-readDoubleM :: String -> ErrorM Double
-readDoubleM a =
-  let x = readMaybe a :: Maybe Double in
-  case x of
-    Just b  -> return b
-    Nothing -> throwE ("\"" ++ a ++ "\" can't be parsed as a Double.")

@@ -3,13 +3,14 @@ module Main where
 import Parse
 import Grammar
 import Options
-import PlotTurtle
+import POVTurtle
 import Tape
 import Utils
 import Control.Monad
 import Data.List
 import System.Console.CmdLib
 import System.Environment
+import System.Exit
 
 data Mode = Test | Fractal | Exit deriving (Eq)
 
@@ -49,9 +50,11 @@ defaultOpts = Main {
   
 main :: IO ()
 main = getArgs >>= executeR defaultOpts >>= \opts -> do
-  result <- runExceptT
+  runExceptT
     (showResults opts (input opts)
-    `catchError` \x -> liftIO (print ("*** Failed with " ++ x)))
+    `catchE'` \x -> do
+        liftIO $ print ("*** Failed with " ++ x)
+        liftIO exitFailure)
   return ()
 
 derive :: (Turt a, Eq b, Ord b, Show b) => LSystem a b -> [b] -> Int -> ErrorIO [b]
@@ -66,21 +69,18 @@ growPlant opts sys = do
       mapErrorM $ getOption "iterate" 1 $ getOptions sys
     else
       return $ iterations opts
-  derive sys (lAxiom sys) (trace ("count = " ++ show count) count)
+  derive sys (lAxiom sys) count
 
 showResults ::  Main -> String -> ExceptT String IO ()
 showResults opts input = do
-  mode <- liftIO $ mergeModeOpts opts
   text <- liftIO $ readFile input
   sys <- mapErrorM (parseRuleFile text)
   plant <- growPlant opts sys
+  mode <- liftIO $ mergeModeOpts opts
   if mode == Test then
     liftIO $ putStrLn ("Final is " ++ plant)
-  else do
-    result <- liftIO $ runExceptT $ plotLSystem sys plant
-    case result of
-      Right a -> liftIO $ print a
-      Left a -> liftIO $ print a
+  else
+    povLSystem sys plant
 
 mergeModeOpts :: Main -> IO Mode
 mergeModeOpts opts =

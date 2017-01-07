@@ -29,7 +29,7 @@ plotLSystem sys lString =
       macros  = getMacros sys
       turtle = plotTurtle macros options
    in do
-    actions <- mapErrorM $ encodeActions lString
+    actions <- mapErrorM $ encodeActions (trace lString lString)
     foldActions actions turtle
     return ()
     
@@ -37,10 +37,8 @@ plotTurtle :: ActionMap PlotTurtle -> OptionMap -> PlotTurtle
 plotTurtle = PlotTurtle (V3 0 0 0) initialOrientation 1
   
 showLine :: V3F -> V3F -> Double -> String
-showLine p1 p2 p =
-  --show x1 ++ " " ++ show y1 ++ "\n" ++ show x2 ++ " " ++ show y2 ++ "\n"
-  "cylinder {" ++ showV3 p1 ++ "," ++ showV3 p2 ++ "," ++ show (p / 2.0)
-  ++ " texture{DMFWood1}}"
+showLine (V3 x1 y1 _) (V3 x2 y2 _) p =
+  show x1 ++ " " ++ show y1 ++ "\n" ++ show x2 ++ " " ++ show y2 ++ "\n"
 
 instance Turt PlotTurtle where
   drawLine t arg =
@@ -74,19 +72,21 @@ instance Turt PlotTurtle where
     width <- mapErrorM $ getFloatArg arg t
     return $ t { tPen = width }
   
-  getMacro t arg =
-    fromMaybe [] $ Map.lookup (getStringArg arg t) $ tMacros t
+  setTexture :: a -> StringArg a -> TurtleMonad a
+  setTexture t _ = return t
+
+  getMacro t arg = do
+    val <- getStringArg arg t
+    return $ fromMaybe [] $ Map.lookup val $ tMacros t
 
   getOpt t key def =
     case Map.lookup key $ tOptions t of
       Just str -> readM str
       Nothing  -> return def
 
-  getDoubleOpt t key def =
-    case Map.lookup key $ tOptions t of
-      Just str -> readDoubleM str :: ErrorM Double
-      Nothing  -> return def
+  evalArgExpr exprStr t = readM exprStr
 
+-- Return an initial orientation matrix suitable for a plant.
 initialOrientation :: M33F
 initialOrientation =
   V3 (V3 0 1 0)

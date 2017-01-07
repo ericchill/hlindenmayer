@@ -5,14 +5,15 @@ module Turtle (
   encodeActions,
   foldActions,
   TPosition,
-  TOrientation,
-  EuclideanState,
+  TOrientation
   )
 where
 import Math
 import Options
 import Utils
 import Control.Monad
+import Data.Strict.Tuple
+import Data.String.Utils
 import Linear.V3
 import System.IO
 
@@ -36,12 +37,14 @@ data TAction a =
   GrowPen (FloatArg a) |
   SetPenWidth (FloatArg a) |
   InvokeMacro (StringArg a) |
+  SetTexture (StringArg a) |
+  PlaceObject (StringArg a) |
   Noop deriving (Show)
 
 encodeActions :: (Turt a) => String -> ErrorM [TAction a]
 encodeActions s =
   do
-    (_, actions) <- appendErrorT " in encodeActions" (encodeActionsRec s)
+    (_, actions) <- appendErrorT " in encodeActions" (encodeActionsRec (Utils.trace s s))
     return actions
 
 encodeActionsRec :: (Turt a) => String -> ErrorM (String, [TAction a])
@@ -52,8 +55,8 @@ encodeActionsRec [] =
 encodeActionsRec s =
   do
     (rest, action) <- encodeAction s
-    (rest', actions) <- encodeActionsRec rest
-    return (rest', action : actions)
+    (rest', actions) <- encodeActionsRec $! rest
+    return (rest', (:) action $! actions)
 
 -- On error string is at error, otherwise it's after parsed action.
 -- Likely cause of future errors will be in parsing expressions as arguments.
@@ -61,36 +64,60 @@ encodeAction :: (Turt a) => String -> ErrorM (String, TAction a)
 encodeAction [] = return ([], Noop)
 encodeAction s@(x:xs)
   | x == '['  = encodeBranch xs
-  | x == 'F'  = return (xs, DrawLine $ floatConst 1)
-  | x == 'G'  = return (xs, DrawNoMark $ floatConst 1)
-  | x == 'f'  = return (xs, Move $ floatConst 1)
-  | x == '+'  = return (xs, TurnLeft getAngle)  -- + z
-  | x == '-'  = return (xs, TurnRight getAngle) -- - z
-  | x == '&'  = return (xs, PitchDown getAngle) -- - y
-  | x == '^'  = return (xs, PitchUp getAngle)   -- y
-  | x == '\\' = return (xs, RollLeft getAngle)  -- - x
-  | x == '/'  = return (xs, RollRight getAngle) -- x
+  | x `elem` "FGfp" = do
+      -- length dimension
+      (arg, xs') <- encodeArg xs (return . const 1.0)
+      let farg = FloatVar arg
+      case x of
+        'F'  -> return (xs', DrawLine farg)
+        'G'  -> return (xs', DrawNoMark farg)
+        'f'  -> return (xs', Move farg)
+        'p'  -> return (xs', SetPenWidth farg)
+  | x `elem` "'`" = do
+      -- pen size ratios
+      (arg, xs') <- encodeArg xs (return . const 1.1)
+      let farg = FloatVar arg
+      case x of
+        '\'' -> return (xs', ShrinkPen farg)
+        '`'  -> return (xs', GrowPen farg)
+  | x `elem` "+-&^\\/" = do
+      -- angle dimension
+      (arg, xs') <- encodeArg xs getAngle
+      let farg = FloatVar arg
+      case x of
+        '+'  -> return (xs', TurnLeft farg)  -- + z
+        '-'  -> return (xs', TurnRight farg) -- - z
+        '&'  -> return (xs', PitchDown farg) -- - y
+        '^'  -> return (xs', PitchUp farg)   -- + y
+        '\\' -> return (xs', RollLeft farg)  -- + x
+        '/'  -> return (xs', RollRight farg) -- - x
   | x == '|'  = return (xs, TurnAround)
   | x == '$'  = return (xs, ResetOrientation)
-  | x == '~'  =
+  | x == '~'  =  -- allow ~C for single and ~(foo) for long names
       if null xs then
-        throwE $ "Dangling macro invocation " ++ s
-      else
+        throwE' $ "Dangling macro invocation " ++ s
+      else if x /= '(' then
         return (tail xs, InvokeMacro $ stringConst [head xs])
-  | x == '\'' = return (xs, ShrinkPen $ floatConst 1.2)
-  | x == '`'  = return (xs, GrowPen $ floatConst 1.2)
-  | x == 'p'  = return (xs, SetPenWidth $ floatConst 1)
+      else do
+        (arg, xs') <- encodeStringArg xs (return . const "")
+        return (xs', InvokeMacro $ StringVar arg)
+  | x `elem` "OT" = do
+      (arg, xs') <- encodeStringArg xs (return . const "")
+      let sarg = StringVar arg in
+        case x of
+          'O' -> return (xs', PlaceObject sarg)
+          'T' -> return (xs', SetTexture sarg)
   | otherwise = return (xs, Noop)
 
 encodeBranch :: (Turt a) => String -> ErrorM (String, TAction a)
 encodeBranch s =
   do
     (rest, actions) <- encodeBranchRec s
-    return (rest, Branch actions)
+    return (rest, Branch $! actions)
 
 -- Like encode actions, but expects a close bracket.
 encodeBranchRec :: (Turt a) => String -> ErrorM (String, [TAction a])
-encodeBranchRes [] = throwE "Oops, branch ran off end."
+encodeBranchRes [] = throwE' "Oops, branch ran off end."
 encodeBranchRec s@(x:xs)
   | x == ']'  = return (xs, [])
   | otherwise =
@@ -99,7 +126,33 @@ encodeBranchRec s@(x:xs)
       (rest', actions) <- encodeBranchRec rest
       return (rest', action : actions)
 
-type TurtleMonad a = ExceptT String IO a
+encodeArg :: (Read a, Turt b) => String -> (b -> ErrorM a) -> ErrorM (b -> ErrorM a, String)
+encodeArg [] def = return (def, [])
+encodeArg s@(x:xs) def
+  | x /= '('  = return (def, s)
+  | otherwise =
+    if ')' `notElem` xs then throwE' "No close parenthesis for action argument."
+    else do
+      (expr, remaining) <- balancedSplit s
+      case maybeRead expr of
+        Just x -> return (const x, remaining)
+        _      -> return (evalArgExpr expr, remaining)
+  
+encodeStringArg :: (Turt a) =>
+  String -> (a -> ErrorM String) -> ErrorM (a -> ErrorM String, String)
+encodeStringArg [] def = return (def, [])
+encodeStringArg s@(x:xs) def
+  | x /= '('  = return (def, s)
+  | otherwise =
+    if ')' `notElem` xs then throwE' "No close parenthesis for action argument."
+    else do
+      (expr, remaining) <- balancedSplit s
+      return (return . const expr, remaining)
+  
+---
+--- The Turtle class
+---
+type TurtleMonad a = ErrorIO a
 
 class Turt a where
   drawLine   :: a -> FloatArg a -> TurtleMonad a
@@ -114,14 +167,15 @@ class Turt a where
   getPenWidth      :: a -> Double
   setPenWidth      :: a -> FloatArg a -> TurtleMonad a
 
-  getMacro :: a -> StringArg a -> [TAction a]
-  getOpt   :: (Read b) => a -> String -> b -> ErrorM b
-  getDoubleOpt   :: a -> String -> Double -> ErrorM Double
+  getMacro     :: a -> StringArg a -> ErrorM [TAction a]
+  getOpt       :: (Read b) => a -> String -> b -> ErrorM b
 
-  getAngle :: FloatArg a
-  getAngle = FloatVar (\t -> do
-                          val <- getDoubleOpt t "delta" 90.0
-                          return $ val * pi / 180.0)
+  evalArgExpr  :: (Read b) => String -> a -> ErrorM b
+
+  getAngle :: a -> ErrorM Double
+  getAngle t = do
+    val <- getOpt t "delta" 90.0
+    return $ val * pi / 180.0
   
   doAction :: a -> TAction a -> TurtleMonad a
   doAction t (Branch actions) = foldActions actions t >> return t
@@ -140,6 +194,7 @@ class Turt a where
   doAction t (GrowPen a)      = growPen t a
   doAction t (SetPenWidth a)  = setPenWidth t a
   doAction t (InvokeMacro a)  = invokeMacro t a
+  doAction t (SetTexture a)   = setTexture t a
   doAction t _ = return t
 
   reorient :: a -> V3F -> FloatArg a -> TurtleMonad a
@@ -166,10 +221,10 @@ class Turt a where
   pitchUp tur = reorient tur yAxis
 
   rollLeft :: a -> FloatArg a -> TurtleMonad a
-  rollLeft tur = reorientMinus tur xAxis
+  rollLeft tur = reorient tur xAxis
 
   rollRight :: a -> FloatArg a -> TurtleMonad a
-  rollRight tur = reorient tur xAxis
+  rollRight tur = reorientMinus tur xAxis
 
   turnAround :: a -> TurtleMonad a
   turnAround tur = reorient tur zAxis $ floatConst pi
@@ -185,17 +240,17 @@ class Turt a where
     setPenWidth tur $ floatConst $ getPenWidth tur * amt
 
   invokeMacro :: a -> StringArg a -> TurtleMonad a
-  invokeMacro tur arg = foldActions (getMacro tur arg) tur
+  invokeMacro tur arg = do
+    macro <- mapErrorM $ getMacro tur arg
+    foldActions macro tur
 
-
+  setTexture :: a -> StringArg a -> TurtleMonad a
+  
 foldActions :: (Turt a) => [TAction a] -> a -> TurtleMonad a
 foldActions [] t = return t
-foldActions (x:xs) t = doAction t x >>= foldActions xs
-
-data EuclideanState a = EuclideanState {
-  tPosition    :: TPosition,
-  tOrientation :: TOrientation
-  }
+foldActions (a:as) t = do
+  t' <- doAction t a
+  foldActions as $! t'
 
 {-
   fastFuncs['[']  = &Turtle::pushTurtle;
@@ -204,4 +259,3 @@ data EuclideanState a = EuclideanState {
   fastFuncs['?']  = &Turtle::pushPoint;
   fastFuncs['#']  = &Turtle::popAndDrawLine;
 -}
-

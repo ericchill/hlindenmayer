@@ -22,7 +22,7 @@ import Utils
 data Tape a = Tape {
   tLeft :: [a],
   tRight :: [a]
-  }
+  } deriving (Show)
   
 type TapeMonad a = ErrorM (Tape a)
 
@@ -46,7 +46,7 @@ rewind t = Tape [] $ tapeHeadLeft t ++ tRight t
 
 moveRight :: Tape a -> TapeMonad a
 moveRight t
-  | isAtEnd t = throwE "Tape already at right."
+  | isAtEnd t = throwE' "Tape already at right."
   | otherwise = return $ Tape (x:l) xs
   where l = tLeft t
         (x:xs) = tRight t
@@ -60,7 +60,7 @@ moveRightMatching x t =
 
 moveLeft :: Tape a -> TapeMonad a
 moveLeft t
-  | isAtStart t = throwE "Tape already at left."
+  | isAtStart t = throwE' "Tape already at left."
   | otherwise = return $ Tape xs (x:r)
   where r = tRight t
         (x:xs) = tLeft t

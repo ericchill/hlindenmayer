@@ -35,8 +35,8 @@ type LSystemError a b = ErrorM (LSystem a b)
 emptySystem :: (Turt a) => Metagrammar b -> LSystem a b
 emptySystem meta = LSystem Map.empty Map.empty (newGrammar meta) []
 
-addOption :: (Turt a) => String -> String -> LSystem a b -> LSystem a b
-addOption k v sys = sys { lOptions = Map.insert k v $ lOptions sys }
+addOption :: (Turt a) => LSystem a b -> String -> String -> LSystem a b
+addOption sys k v = sys { lOptions = Map.insert k v $ lOptions sys }
 
 getMacros :: (Turt a) => LSystem a b -> ActionMap a
 getMacros = lMacros
@@ -44,16 +44,16 @@ getMacros = lMacros
 getOptions :: LSystem a b -> OptionMap
 getOptions = lOptions
 
-addMacro :: (Turt a) => String -> String -> LSystem a b -> LSystemError a b
-addMacro k v sys = do
+addMacro :: (Turt a) => LSystem a b -> String -> String -> LSystemError a b
+addMacro sys k v = do
   actions <- withExceptT (++ " in addMacro") (encodeActions v)
   return $ sys { lMacros = Map.insert k actions $ lMacros sys }
 
-setAxiom :: (Turt a, Show b) => [b] -> LSystem a b -> LSystem a b
-setAxiom a sys = sys { lAxiom  = a }
+setAxiom :: (Turt a, Show b) => LSystem a b -> [b] -> LSystem a b
+setAxiom sys a = sys { lAxiom  = a }
 
-setGrammar :: (Turt a, Show b) => Grammar b -> LSystem a b -> LSystem a b
-setGrammar g sys = sys { lGrammar = g }
+setGrammar :: (Turt a, Show b) => LSystem a b -> Grammar b -> LSystem a b
+setGrammar sys g = sys { lGrammar = g }
 
-setIgnore :: (Turt a, Eq b) => [b] -> LSystem a b -> LSystem a b
-setIgnore x sys = sys { lGrammar = gSetIgnore x $ lGrammar sys }
+setIgnore :: (Turt a, Eq b) => LSystem a b -> [b] -> LSystem a b
+setIgnore sys x = sys { lGrammar = gSetIgnore x $ lGrammar sys }
