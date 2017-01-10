@@ -2,6 +2,7 @@ module Math (
   V3F(..),
   M33F(..),
   showV3,
+  showFloat,
   xAxis, yAxis, zAxis,
   rotateMatrix,
   translateX,
@@ -16,6 +17,7 @@ import Linear.Matrix as M
 import Linear.Quaternion
 import Linear.V3 as V3
 import Linear.Vector as V
+import Text.Printf
 
 type V3F  = V3 Double
 type M33F = M33 Double
@@ -26,9 +28,9 @@ showV3 (V3 x y z) =
 
 showFloat :: Double -> String
 showFloat x
-  | abs x < 0.000001 = "0"
-  | abs (x - (fromInteger . round) x) < 0.000001 = show $ round x
-  | otherwise = show x
+  | abs x < 0.0001 = "0"
+  | abs (x - (fromInteger . round) x) < 0.0001 = show $ round x
+  | otherwise = printf "%.4f" x
 
 rotateMatrix :: M33F -> V3F -> Double -> M33F
 rotateMatrix mat axis angle = mat !*! fromQuaternion (axisAngle axis angle)

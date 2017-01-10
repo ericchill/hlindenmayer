@@ -41,7 +41,7 @@ povTurtle = POVTurtle (V3 0 0 0) initialOrientation False [] 1
   
 showLine :: POVTurtle -> V3F -> V3F -> Double -> String
 showLine t p1 p2 p =
-  "cylinder{" ++ showV3 p1 ++ "," ++ showV3 p2 ++ "," ++ show (p / 2.0) ++ (
+  "cylinder{" ++ showV3 p1 ++ "," ++ showV3 p2 ++ "," ++ showFloat (p / 2.0) ++ (
     if tTexture t /= "" then " texture{" ++ tTexture t ++ "}"
     else "") ++ "}"
 
