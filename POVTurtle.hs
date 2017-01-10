@@ -42,6 +42,12 @@ povTurtle = POVTurtle (V3 0 0 0) initialOrientation False [] 1
 showLine :: POVTurtle -> V3F -> V3F -> Double -> String
 showLine t p1 p2 p =
   "cylinder{" ++ showV3 p1 ++ "," ++ showV3 p2 ++ "," ++ show (p / 2.0) ++ (
+    if tTexture t /= "" then " texture{" ++ tTexture t ++ "}"
+    else "") ++ "}"
+
+showSphere :: POVTurtle -> V3F -> Double -> String
+showSphere t x d =
+  "sphere{" ++ showV3 (tPos t) ++ ", " ++ show (d / 2.0) ++ (
   if tTexture t /= "" then " texture{" ++ tTexture t ++ "}"
   else "") ++ "}"
 
@@ -56,6 +62,13 @@ instance Turt POVTurtle where
         return moved
 
   drawNoMark = drawLine
+
+  drawSphere t =
+    let at = tPos t
+        diam = max 0.1 $ tPen t
+    in do
+      liftIO $! putStrLn $! showSphere t (tPos t) diam
+      return t
 
   move t arg = do
     dist <- mapErrorM $! getFloatArg arg t

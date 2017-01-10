@@ -5,6 +5,7 @@ module Metagrammar (
   lcondiff,
   rcondiff,
   skipLeft,
+  skipRight,
   skipAndCopy,
   Tape
     )
@@ -80,7 +81,7 @@ rcondiff meta s@(x:xs) t =
     (isAtEnd <$> t'           , return False),
     (isIgnored meta <$> h     , diffNext),
     (isOpenBracket meta <$> h , do
-        (_, t') <- mapErrorM $ skipAndCopy meta t
+        t' <- mapErrorM $ skipRight meta t
         rcondiff meta s t'),
     (return $ isWild meta x   , diffNext),
     ((x /=) <$> h             , return False)]
@@ -105,6 +106,28 @@ skipLeftRec meta delimStack@(d:ds) t
   where t' = moveLeft t `amendE'` "skipLeftRec"
         x = (head . tapeHead) t
 
+-- Skip right, balancing parenthesis &c.
+skipRight :: (Eq a, Show a) => Metagrammar a -> Tape a -> TapeMonad a
+skipRight meta t
+  | isAtEnd t  = throwE' "Already at end in skipAndCopy"
+  | otherwise  = do
+      t' <- moveRight t
+      skipRightRec meta [(head . tapeHead) t] t'
+
+skipRightRec :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> TapeMonad a
+skipRightRec _ [] t = return t
+skipRightRec meta stack t
+  | isAtEnd t = throwE' "skipRight: Missing closing delimiter."
+  | otherwise =
+    let x = (head . tapeHead) $! t
+        newStack = case x of
+          _ | closesBracket meta x (head stack) -> tail stack
+            | isOpenBracket meta x              -> x : stack
+            | otherwise                         -> stack
+    in do
+      t' <- moveRight t `amendE'` "skipRight"
+      skipRightRec meta newStack t'
+
 -- For a string starting with a balanced delimiter, copy up to the left of the close
 -- and return tape position to the right.
 skipAndCopy :: (Eq a, Show a) => Metagrammar a -> Tape a -> ErrorM ([a], Tape a)
@@ -112,8 +135,7 @@ skipAndCopy meta t
   | isAtEnd t  = throwE' "Already at end in skipAndCopy"
   | otherwise  = do
       t' <- moveRight t
-      (result, t'') <- skipAndCopyRec meta [(head . tapeHead) t] t'
-      return (result, t'')
+      skipAndCopyRec meta [(head . tapeHead) t] t'
 
 skipAndCopyRec :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> ErrorM ([a], Tape a)
 skipAndCopyRec _ [] t = return ([], t)
@@ -126,7 +148,6 @@ skipAndCopyRec meta stack t
             | isOpenBracket meta x              -> x : stack
             | otherwise                         -> stack
     in do
-      t' <- moveRight t `amendE'` "skipRightRec"
-      (rest, t'') <-
-        skipAndCopyRec meta newStack t'
+      t' <- moveRight t `amendE'` "skipAndCopy"
+      (rest, t'') <- skipAndCopyRec meta newStack t'
       return (x : rest, t'')

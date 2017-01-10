@@ -8,6 +8,7 @@ module Turtle (
   TOrientation
   )
 where
+import Error
 import Math
 import Options
 import Utils
@@ -39,6 +40,7 @@ data TAction a =
   SetColor (StringArg a) | -- Should be Vector arg
   SetTexture (StringArg a) |
   PlaceObject (StringArg a) |
+  DrawSphere |
   StartPolygon |
   MarkVertex |
   EndPolygon |
@@ -92,7 +94,7 @@ encodeAction s@(x:xs)
         'p'  -> return (xs', SetPenWidth farg)
   -- Pen sizes grow and shrink by a scale factor.
   | x `elem` "'`" = do
-      (arg, xs') <- encodeArg xs (return . const 1.1)
+      (arg, xs') <- encodeArg xs (return . const 1.0001)
       let farg = FloatVar arg
       case x of
         '\'' -> return (xs', ShrinkPen farg)
@@ -131,8 +133,16 @@ encodeAction s@(x:xs)
   | x == '.'  = return (xs, MarkVertex)
   | x == '}'  = return (xs, EndPolygon)
   | x == '$'  = return (xs, ResetOrientation)
+  | x == '@'  = encodeMultiChar xs
   | otherwise = return (xs, Noop)
 
+encodeMultiChar :: (Turt a) => String -> ErrorM (String, TAction a)
+encodeMultiChar [] = throwE' "Dangling multi-character." 
+encodeMultiChar s =
+  case head s of
+    'O' -> return (tail s, DrawSphere)
+    _   -> throwE' $ "Don't know what @" ++ [head s] ++ " means."
+  
 encodeBranch :: (Turt a) => String -> ErrorM (String, TAction a)
 encodeBranch s =
   do
@@ -192,6 +202,8 @@ class Turt a where
   setOrientation   :: a -> TOrientation -> TurtleMonad a
   resetOrientation :: a -> TurtleMonad a
 
+  drawSphere       :: a -> TurtleMonad a
+
   startPolygon     :: a -> TurtleMonad a
   markVertex       :: a -> TurtleMonad a
   endPolygon       :: a -> TurtleMonad a
@@ -210,27 +222,28 @@ class Turt a where
     return $ val * pi / 180.0
   
   doAction :: a -> TAction a -> TurtleMonad a
-  doAction t (Branch actions) = foldActions actions t >> return t
-  doAction t (DrawLine dt)    = drawLine t dt
-  doAction t (DrawNoMark dt)  = drawLine t dt
-  doAction t (Move dt)        = move t dt
-  doAction t StartPolygon     = startPolygon t
-  doAction t MarkVertex       = markVertex t
-  doAction t EndPolygon       = endPolygon t
-  doAction t (TurnLeft da)    = turnLeft t da
-  doAction t (TurnRight da)   = turnRight t da
-  doAction t (PitchDown da)   = pitchDown t da
-  doAction t (PitchUp da)     = pitchUp t da
-  doAction t (RollLeft da)    = rollLeft t da
-  doAction t (RollRight da)   = rollRight t da
-  doAction t TurnAround       = turnAround t
-  doAction t ResetOrientation = resetOrientation t
-  doAction t (ShrinkPen a)    = shrinkPen t a
-  doAction t (GrowPen a)      = growPen t a
-  doAction t (SetPenWidth a)  = setPenWidth t a
-  doAction t (InvokeMacro a)  = invokeMacro t a
-  doAction t (SetTexture a)   = setTexture t a
-  doAction t (SetColor a)     = setColor t a
+  doAction t (Branch actions)   = foldActions actions t >> return t
+  doAction t (DrawLine dt)      = drawLine t dt
+  doAction t (DrawNoMark dt)    = drawLine t dt
+  doAction t (Move dt)          = move t dt
+  doAction t DrawSphere         = drawSphere t
+  doAction t StartPolygon       = startPolygon t
+  doAction t MarkVertex         = markVertex t
+  doAction t EndPolygon         = endPolygon t
+  doAction t (TurnLeft da)      = turnLeft t da
+  doAction t (TurnRight da)     = turnRight t da
+  doAction t (PitchDown da)     = pitchDown t da
+  doAction t (PitchUp da)       = pitchUp t da
+  doAction t (RollLeft da)      = rollLeft t da
+  doAction t (RollRight da)     = rollRight t da
+  doAction t TurnAround         = turnAround t
+  doAction t ResetOrientation   = resetOrientation t
+  doAction t (ShrinkPen a)      = shrinkPen t a
+  doAction t (GrowPen a)        = growPen t a
+  doAction t (SetPenWidth a)    = setPenWidth t a
+  doAction t (InvokeMacro a)    = invokeMacro t a
+  doAction t (SetTexture a)     = setTexture t a
+  doAction t (SetColor a)       = setColor t a
   doAction t _ = return t
 
   reorient :: a -> V3F -> FloatArg a -> TurtleMonad a

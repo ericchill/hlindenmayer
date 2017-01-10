@@ -24,6 +24,7 @@ throwE' = throwError
 
 catchE' :: (Monad m) =>
   ExceptT String m a -> (String -> ExceptT String m a) -> ExceptT String m a
+catchE' = catchError
 
 amendE' :: (Monad m) => ExceptT String m a -> String -> ExceptT String m a
 amendE' m extra = m `catchError` \err -> throwError $ err ++ "; " ++ extra
@@ -38,4 +39,4 @@ trace :: String -> a -> a
 trace msg arg = if traceOn then Trace.trace msg arg else arg
 
 traceOn :: Bool
-traceOn = False
+traceOn = True

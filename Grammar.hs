@@ -35,8 +35,8 @@ produceRec g t
   | isAtEnd t = return []
   | otherwise = do
       (t', prod) <- mapErrorM $! produceOne g t
+      chosen <- randomElement prod
       prod' <- produceRec g t'
-      chosen <- randomElement $! prod
       return $ chosen ++ prod'
     
 produceOne :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> GramError a
@@ -48,7 +48,7 @@ produceOne g t =
       [] -> return (t, [[]])
       (x:_)
         | isBreak meta x -> do
-            (_, t') <- skipAndCopy meta t `amendE'` ("produceOne(0) " ++ fragment)
+            t' <- skipRight meta t `amendE'` ("produceOne(0) " ++ fragment)
             moveRight t' `amendE'` ("produceOne(1) " ++ fragment)
             return (t', [[]])
         | isBlank meta x -> justCopy meta t
