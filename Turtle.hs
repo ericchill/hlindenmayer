@@ -94,7 +94,7 @@ encodeAction s@(x:xs)
         'p'  -> return (xs', SetPenWidth farg)
   -- Pen sizes grow and shrink by a scale factor.
   | x `elem` "'`" = do
-      (arg, xs') <- encodeArg xs (return . const 1.0001)
+      (arg, xs') <- encodeArg xs (return . const 1.1)
       let farg = FloatVar arg
       case x of
         '\'' -> return (xs', ShrinkPen farg)
@@ -120,10 +120,9 @@ encodeAction s@(x:xs)
           'T' -> return (xs', SetTexture sarg)
   -- Macro invocation
   | x == '~'  =  -- allow ~C for single and ~(foo) for long names
-      if null xs then
-        throwE' $ "Dangling macro invocation " ++ s
-      else if x /= '(' then
-        return (tail xs, InvokeMacro $ stringConst [head xs])
+    let next = head xs in
+      if null xs then throwE' $ "Dangling macro invocation " ++ s
+      else if next /= '(' then return (tail xs, InvokeMacro $ stringConst [next])
       else do
         (arg, xs') <- encodeStringArg xs (return . const "")
         return (xs', InvokeMacro $ StringVar arg)
@@ -254,8 +253,7 @@ class Turt a where
   reorientMinus :: a -> V3F -> FloatArg a -> TurtleMonad a
   reorientMinus tur axis arg = do
     angle <- mapErrorM $ getFloatArg arg tur
-    setOrientation tur
-      $ rotateMatrix (getOrientation tur) axis (- angle)
+    setOrientation tur $ rotateMatrix (getOrientation tur) axis (- angle)
     
   turnLeft :: a -> FloatArg a -> TurtleMonad a
   turnLeft tur = reorient tur zAxis

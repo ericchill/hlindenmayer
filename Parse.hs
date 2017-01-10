@@ -30,12 +30,13 @@ metagrammar toIgnore = Metagrammar {
   isOpenBracket  = isOpenPunctuation,
   isCloseBracket = isClosePunctuation,
   closesBracket  = closes,
-  isBlank   = isSpace,
-  isIgnored = (`elem` toIgnore),
-  isWild    = (== '*'),
-  isBreak   = (== '%'),
-  nullSym   = chr 0,
-  rsSig     = "()[]{}*%"
+  isFuncArg      = (== '('),
+  isBlank        = isSpace,
+  isIgnored      = (`elem` toIgnore),
+  isWild         = (== '*'),
+  isBreak        = (== '%'),
+  nullSym        = chr 0,
+  rsSig          = "()[]{}*%"
   }
 
 parseRuleFile :: (Turt a) => String -> LSystemError a Char

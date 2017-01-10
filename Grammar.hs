@@ -12,8 +12,6 @@ import Utils
 import Metagrammar
 import Rule
 import Data.Foldable (toList)
-import Data.Function (on)
-import Data.List (isPrefixOf, sortBy)
 import Data.Maybe (fromJust)
 import qualified Data.Map.Strict as Map
 
@@ -74,7 +72,7 @@ justCopy meta t = do
 copyArgument :: (Eq a, Show a) => Metagrammar a -> Tape a -> ErrorM ([a], Tape a)
 copyArgument meta t
   | isAtEnd t = return ([], t)  -- isOpenBracket may fail if we don't do this first
-  | isOpenBracket meta $ (head . tapeHead) t = do
+  | isFuncArg meta $ (head . tapeHead) t = do
       (rest, t') <- skipAndCopy meta t `amendE'` "copyArgument"
       return ((head . tapeHead) t : rest, t')
   | otherwise = return ([], t)
@@ -94,14 +92,5 @@ addRuleFromSpec spec production g =
 
 lookupRule :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> Maybe ([a], LRule a)
 lookupRule (Grammar _ rules) t = do
-  matched <- matchLongestPrefix t $ Map.keys rules
+  matched <- matchLongestPrefix (tapeHead t) $ Map.keys rules
   return (matched, fromJust $ Map.lookup matched rules)
-
-matchLongestPrefix :: (Eq a) => Tape a -> [[a]] -> Maybe [a]
-matchLongestPrefix t prefixes =
-  case
-       filter (\a -> a `isPrefixOf` tapeHead t) $
-       sortBy (compare `on` length) prefixes
-  of
-    [] -> Nothing
-    x  -> Just $ head x

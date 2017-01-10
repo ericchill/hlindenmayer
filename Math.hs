@@ -22,17 +22,16 @@ type M33F = M33 Double
 
 showV3 :: V3F -> String
 showV3 (V3 x y z) =
-  "<" ++ (showFloat $! x) ++ "," ++ (showFloat $! y) ++ "," ++ showFloat z ++ ">"
+  "<" ++ showFloat x ++ "," ++ showFloat y ++ "," ++ showFloat z ++ ">"
 
 showFloat :: Double -> String
 showFloat x
   | abs x < 0.000001 = "0"
-  | abs (x - (fromInteger . round) x) < 0.000001 = show $! round x
-  | otherwise = show $! x
+  | abs (x - (fromInteger . round) x) < 0.000001 = show $ round x
+  | otherwise = show x
 
 rotateMatrix :: M33F -> V3F -> Double -> M33F
-rotateMatrix mat axis angle =
-  mat !*! (fromQuaternion $! axisAngle axis angle)
+rotateMatrix mat axis angle = mat !*! fromQuaternion (axisAngle axis angle)
 
 xAxis :: V3F
 xAxis = V3 1 0 0

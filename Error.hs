@@ -39,4 +39,4 @@ trace :: String -> a -> a
 trace msg arg = if traceOn then Trace.trace msg arg else arg
 
 traceOn :: Bool
-traceOn = True
+traceOn = False

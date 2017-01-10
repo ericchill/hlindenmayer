@@ -8,6 +8,7 @@ import Tape
 import Utils
 import Control.Monad
 import Data.List
+import qualified Debug.Trace as Trace
 import System.Console.CmdLib
 import System.Environment
 import System.Exit
@@ -62,7 +63,7 @@ derive mode sys start 0 = return start
 derive mode sys start n = do
   production <- produce (lGrammar sys) start
   derive mode sys ((
-    if mode == Test then trace ("step " ++ show n ++ ": " ++ show production)
+    if mode == Test then Trace.trace ("step " ++ show n ++ ": " ++ show production)
     else id) production)
     (n - 1)
 

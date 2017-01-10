@@ -9,12 +9,15 @@ module Utils (
   isOpenPunctuation,
   isClosePunctuation,
   closes,
+  matchLongestPrefix,
   module Error,
   module Control.Applicative,
   )
   where
 import Error
 import Control.Applicative
+import Data.Function (on)
+import Data.List (isPrefixOf, sortBy)
 import Data.List.Utils
 import Data.String.Utils
 import System.Random
@@ -41,10 +44,12 @@ lNot = liftA not
 
 
 -- Return a random element from a list.
-randomElement :: [a] -> ErrorIO a
-randomElement a = do
-  i <- liftIO $ getStdRandom (randomR(0, length a - 1))
-  return $ a !! i
+randomElement :: (Show a) => [a] -> ErrorIO a
+randomElement a =
+  if length a == 1 then return $ head a  -- conserve entropy
+  else do
+    i <- liftIO $ getStdRandom (randomR(0, length a - 1))
+    return $ a !! i
 
 
 -- Read a number. If there is a decimal point without a leading digit, insert one.
@@ -101,3 +106,12 @@ closes close open
   | open == '[' = close == ']'
   | open == '{' = close == '}'
   | otherwise = False
+
+
+matchLongestPrefix :: (Eq a, Show a) => [a] -> [[a]] -> Maybe [a]
+matchLongestPrefix s prefixes =
+  case
+       filter (`isPrefixOf` s) $ sortBy (compare `on` length) prefixes
+  of
+    [] -> Nothing
+    x  -> Just $ head x
