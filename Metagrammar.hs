@@ -5,7 +5,7 @@ module Metagrammar (
   lcondiff,
   rcondiff,
   skipLeft,
-  skipRight,
+  skipAndCopy,
   Tape
     )
 where
@@ -70,7 +70,26 @@ lcondiff meta s@(x:xs) t =
          h = (head . tapeHead) <$> t'
          diffNext = join $ lcondiff meta xs <$> t'
 
--- Leave head right before closing item
+-- Check right context
+rcondiff :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> ErrorM Bool
+rcondiff _    []  _ = return True
+rcondiff meta [x] _ = return $ isWild meta x
+rcondiff meta s@(x:xs) t =
+  caseM [
+    (return $ isAtEnd t       , return $ isWild meta x),
+    (isAtEnd <$> t'           , return False),
+    (isIgnored meta <$> h     , diffNext),
+    (isOpenBracket meta <$> h , do
+        (_, t') <- mapErrorM $ skipAndCopy meta t
+        rcondiff meta s t'),
+    (return $ isWild meta x   , diffNext),
+    ((x /=) <$> h             , return False)]
+    diffNext
+  where t' = moveRight t
+        h = (head . tapeHead) <$> t'
+        diffNext = t' >>= rcondiff meta xs
+  
+-- Leave head to left of item
 skipLeft :: (Eq a) => Metagrammar a -> Tape a -> TapeMonad a
 skipLeft meta t
   | isAtStart t = throwE' "Already at end in skipLeft"
@@ -86,36 +105,28 @@ skipLeftRec meta delimStack@(d:ds) t
   where t' = moveLeft t `amendE'` "skipLeftRec"
         x = (head . tapeHead) t
 
--- Check right context
-rcondiff :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> ErrorM Bool
-rcondiff _    []  _ = return True
-rcondiff meta [x] _ = return $ isWild meta x
-rcondiff meta s@(x:xs) t =
-  caseM [
-    (return $ isAtEnd t       , return $ isWild meta x),
-    (isAtEnd <$> t'           , return False),
-    (isIgnored meta <$> h     , diffNext),
-    (isOpenBracket meta <$> h , skipRight meta t >>= rcondiff meta s),
-    (return $ isWild meta x   , diffNext),
-    ((x /=) <$> h             , return False)]
-    diffNext
-  where t' = moveRight t
-        h = (head . tapeHead) <$> t'
-        diffNext = t' >>= rcondiff meta xs
-  
--- For a string starting with a balanced delimiter, skip past the closing item.
-skipRight :: (Eq a) => Metagrammar a -> Tape a -> TapeMonad a
-skipRight meta t
-  | isAtEnd t  = throwE' "Already at end in skipRight"
-  | otherwise  = skipRightRec meta [(head . tapeHead) t] t
+-- For a string starting with a balanced delimiter, copy up to the left of the close
+-- and return tape position to the right.
+skipAndCopy :: (Eq a, Show a) => Metagrammar a -> Tape a -> ErrorM ([a], Tape a)
+skipAndCopy meta t
+  | isAtEnd t  = throwE' "Already at end in skipAndCopy"
+  | otherwise  = do
+      t' <- moveRight t
+      (result, t'') <- skipAndCopyRec meta [(head . tapeHead) t] t'
+      return (result, t'')
 
-skipRightRec :: (Eq a) => Metagrammar a -> [a] -> Tape a -> TapeMonad a
-skipRightRec _ [] t = return t
-skipRightRec meta delimStack@(d:ds) t
-  | isAtEnd t              = throwE' "skipRight: Missing closing delimiter."
-  | closesBracket meta x d = t' >>= skipRightRec meta ds
-  | isOpenBracket meta x   = t' >>= skipRightRec meta (x:ds)
-  | otherwise              = t' >>= skipRightRec meta delimStack
-  where
-    t' = moveRight t `amendE'` "skipRightRec"
-    x = (head . tapeHead) t
+skipAndCopyRec :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> ErrorM ([a], Tape a)
+skipAndCopyRec _ [] t = return ([], t)
+skipAndCopyRec meta stack t
+  | isAtEnd t = throwE' "skipAndCopy: Missing closing delimiter."
+  | otherwise =
+    let x = (head . tapeHead) $! t
+        newStack = case x of
+          _ | closesBracket meta x (head stack) -> tail stack
+            | isOpenBracket meta x              -> x : stack
+            | otherwise                         -> stack
+    in do
+      t' <- moveRight t `amendE'` "skipRightRec"
+      (rest, t'') <-
+        skipAndCopyRec meta newStack t'
+      return (x : rest, t'')

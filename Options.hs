@@ -8,13 +8,16 @@ module Options (
   getStringArg,
   getOption,
   readM,
-  readDoubleM
   ) where
 import Error
 import Utils
 import qualified Data.Map.Strict as Map
 --import Text.Read
 
+{-
+TODO - OptionMap should be String -> OptionValue
+  where value is FloatArg, StringArg, ColorArg, ...
+-}
 type OptionMap = Map.Map String String
 
 data FloatArg a = FloatVar (a -> ErrorM Double) | FloatConst Double

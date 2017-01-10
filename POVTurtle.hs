@@ -16,12 +16,14 @@ import Data.Maybe (fromMaybe)
 import Linear.V3
 
 data POVTurtle = POVTurtle {
-  tPos     :: TPosition,
-  tOrient  :: TOrientation,  -- tOrient_x is speed
-  tPen     :: Double,
-  tMacros  :: ActionMap POVTurtle,
-  tOptions :: OptionMap,
-  tTexture :: String
+  tPos        :: TPosition,
+  tOrient     :: TOrientation,  -- tOrient_x is speed
+  tInPoly     :: Bool,
+  tPolyPoints :: [V3F],
+  tPen        :: Double,
+  tMacros     :: ActionMap POVTurtle,
+  tOptions    :: OptionMap,
+  tTexture    :: String
   }
 
 povLSystem :: LSystem POVTurtle Char -> String -> ErrorIO ()
@@ -30,12 +32,12 @@ povLSystem sys lString =
       macros  = getMacros sys
       turtle = povTurtle macros options ""
    in do
-    actions <- mapErrorM $ encodeActions (Utils.trace lString lString)
+    actions <- mapErrorM $ encodeActions lString
     foldActions actions turtle
     return ()
 
 povTurtle :: ActionMap POVTurtle -> OptionMap -> String -> POVTurtle
-povTurtle = POVTurtle (V3 0 0 0) initialOrientation 1
+povTurtle = POVTurtle (V3 0 0 0) initialOrientation False [] 1
   
 showLine :: POVTurtle -> V3F -> V3F -> Double -> String
 showLine t p1 p2 p =
@@ -69,11 +71,30 @@ instance Turt POVTurtle where
     
   resetOrientation t = return $! t { tOrient = initialOrientation }
 
+  startPolygon t =
+    if tInPoly t then return t  -- igore
+    else return $ t { tInPoly = True, tPolyPoints = [] }
+    
+  markVertex t =
+    if tInPoly t then
+      return $ t { tPolyPoints = tPos t : tPolyPoints t }
+    else
+      throwError "Trying to mark vertex while turtle not in polygon."
+
+  endPolygon t =
+    if tInPoly t then
+      return t -- For now
+    else
+      throwError "Trying to complete polygon that hasn't been started."
+    
+
   getPenWidth = tPen
   
   setPenWidth t arg = do
     width <- mapErrorM $ getFloatArg arg t
     return $! t { tPen = width }
+  
+  setColor t _ = return t
   
   setTexture t arg = do
     texture <- mapErrorM $ getStringArg arg t

@@ -28,14 +28,14 @@ newGrammar :: Metagrammar a -> Grammar a
 newGrammar meta = Grammar meta Map.empty
 
 produce :: (Eq a, Ord a, Show a) => Grammar a -> [a] -> ErrorIO [a]
-produce g s = produce' g $ newTape s
+produce g s = produceRec g $ newTape s
 
-produce' :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> ErrorIO [a]
-produce' g t
+produceRec :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> ErrorIO [a]
+produceRec g t
   | isAtEnd t = return []
   | otherwise = do
       (t', prod) <- mapErrorM $! produceOne g t
-      prod' <- produce' g t'
+      prod' <- produceRec g t'
       chosen <- randomElement $! prod
       return $ chosen ++ prod'
     
@@ -48,25 +48,36 @@ produceOne g t =
       [] -> return (t, [[]])
       (x:_)
         | isBreak meta x -> do
-            t' <- (skipRight meta t >>= moveRight)
-                  `amendE'` ("produceOne(isBreak) " ++ fragment)
+            (_, t') <- skipAndCopy meta t `amendE'` ("produceOne(0) " ++ fragment)
+            moveRight t' `amendE'` ("produceOne(1) " ++ fragment)
             return (t', [[]])
-        | isBlank meta x -> justCopy t
+        | isBlank meta x -> justCopy meta t
         | otherwise ->
-            case lookupRule t g of
+            case lookupRule g t of
               Just (matched, rule) -> do
                 productions <- applyRule rule t
-                if null productions then justCopy t
+                if null productions then justCopy meta t
                   else do
                     t' <- moveRightBy t matched
                           `amendE'` ("produceOne(result) " ++ fragment)
-                    return (t', productions)
-              Nothing -> justCopy t
+                    (_, t'') <- copyArgument meta t' -- skip over old argument
+                    return (t'', productions)
+              Nothing -> justCopy meta t
 
-justCopy :: Tape a -> GramError a
-justCopy t = do
-  t' <- moveRight t `amendE'` "justCopy"
-  return (t', [[(head . tapeHead) $! t]])
+justCopy :: (Eq a, Show a) => Metagrammar a -> Tape a -> GramError a
+justCopy meta t = do
+  let x = (head . tapeHead) t
+  t' <- moveRight t `amendE'` "justCopy(1)"
+  (arg, t'') <- copyArgument meta t'
+  return (t'', [x : arg])
+
+copyArgument :: (Eq a, Show a) => Metagrammar a -> Tape a -> ErrorM ([a], Tape a)
+copyArgument meta t
+  | isAtEnd t = return ([], t)  -- isOpenBracket may fail if we don't do this first
+  | isOpenBracket meta $ (head . tapeHead) t = do
+      (rest, t') <- skipAndCopy meta t `amendE'` "copyArgument"
+      return ((head . tapeHead) t : rest, t')
+  | otherwise = return ([], t)
 
 gSetIgnore :: (Eq a) => [a] -> Grammar a -> Grammar a
 gSetIgnore x g = g { gMeta = mSetIgnore x $ gMeta g }
@@ -81,8 +92,8 @@ addRuleFromSpec spec production g =
       Just aRule ->
         g { gRules = Map.insert pred (addSuccessor spec production aRule) rules }
 
-lookupRule :: (Eq a, Ord a, Show a) => Tape a -> Grammar a -> Maybe ([a], LRule a)
-lookupRule t (Grammar _ rules) = do
+lookupRule :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> Maybe ([a], LRule a)
+lookupRule (Grammar _ rules) t = do
   matched <- matchLongestPrefix t $ Map.keys rules
   return (matched, fromJust $ Map.lookup matched rules)
 

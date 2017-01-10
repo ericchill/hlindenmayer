@@ -29,7 +29,7 @@ plotLSystem sys lString =
       macros  = getMacros sys
       turtle = plotTurtle macros options
    in do
-    actions <- mapErrorM $ encodeActions (trace lString lString)
+    actions <- mapErrorM $ encodeActions lString
     foldActions actions turtle
     return ()
     

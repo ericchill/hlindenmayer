@@ -27,19 +27,15 @@ import qualified Data.Map.Strict as Map
 
 metagrammar :: String -> Metagrammar Char
 metagrammar toIgnore = Metagrammar {
-  isOpenBracket  = (`elem` "(["),
-  isCloseBracket = (`elem` ")]"),
-  closesBracket  = \a b ->
-      case a of
-        '(' -> b == ')'
-        '[' -> b == ']'
-        _   -> False,
+  isOpenBracket  = isOpenPunctuation,
+  isCloseBracket = isClosePunctuation,
+  closesBracket  = closes,
   isBlank   = isSpace,
   isIgnored = (`elem` toIgnore),
   isWild    = (== '*'),
   isBreak   = (== '%'),
   nullSym   = chr 0,
-  rsSig     = "()[]*%"
+  rsSig     = "()[]{}*%"
   }
 
 parseRuleFile :: (Turt a) => String -> LSystemError a Char
@@ -74,6 +70,7 @@ addParam line sys
   | null param        = throwE' $ "Malformed option: " ++ line
   | otherwise         = return $ addOption sys param arg
   where (param, arg) = stripSplit1 ":" line
+
 
 addRule :: (Turt a) => String -> LSystem a Char -> LSystemError a Char
 addRule line sys =

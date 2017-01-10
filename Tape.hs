@@ -44,17 +44,17 @@ tapeHeadLeft = reverse . tLeft
 rewind :: Tape a -> Tape a
 rewind t = Tape [] $ tapeHeadLeft t ++ tRight t
 
-moveRight :: Tape a -> TapeMonad a
+moveRight :: (Show a) => Tape a -> TapeMonad a
 moveRight t
   | isAtEnd t = throwE' "Tape already at right."
   | otherwise = return $ Tape (x:l) xs
   where l = tLeft t
         (x:xs) = tRight t
 
-moveRightBy :: Tape a -> [b] -> TapeMonad a
+moveRightBy :: (Show a) => Tape a -> [b] -> TapeMonad a
 moveRightBy = foldM (\t _ -> moveRight t)
 
-moveRightMatching :: (Eq a) => [a] -> Tape a -> TapeMonad a
+moveRightMatching :: (Eq a, Show a) => [a] -> Tape a -> TapeMonad a
 moveRightMatching x t =
   foldM (\t _ -> moveRight t) t $ takeWhile (uncurry (==)) $ zip x $ tRight t
 

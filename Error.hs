@@ -24,7 +24,6 @@ throwE' = throwError
 
 catchE' :: (Monad m) =>
   ExceptT String m a -> (String -> ExceptT String m a) -> ExceptT String m a
-catchE' m handler = trace "in catch" m `catchError` handler
 
 amendE' :: (Monad m) => ExceptT String m a -> String -> ExceptT String m a
 amendE' m extra = m `catchError` \err -> throwError $ err ++ "; " ++ extra

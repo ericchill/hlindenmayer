@@ -57,26 +57,29 @@ main = getArgs >>= executeR defaultOpts >>= \opts -> do
         liftIO exitFailure)
   return ()
 
-derive :: (Turt a, Eq b, Ord b, Show b) => LSystem a b -> [b] -> Int -> ErrorIO [b]
-derive sys start 0 = return start
-derive sys start n = do
+derive :: (Turt a, Eq b, Ord b, Show b) => Mode -> LSystem a b -> [b] -> Int -> ErrorIO [b]
+derive mode sys start 0 = return start
+derive mode sys start n = do
   production <- produce (lGrammar sys) start
-  derive sys production (n - 1)
+  derive mode sys ((
+    if mode == Test then trace ("step " ++ show n ++ ": " ++ show production)
+    else id) production)
+    (n - 1)
 
-growPlant :: (Turt a) => Main -> LSystem a Char -> ErrorIO String
-growPlant opts sys = do
+growPlant :: (Turt a) => Mode -> Main -> LSystem a Char -> ErrorIO String
+growPlant mode opts sys = do
   count <- if iterations opts == -1 then
       mapErrorM $ getOption "iterate" 1 $ getOptions sys
     else
       return $ iterations opts
-  derive sys (lAxiom sys) count
+  derive mode sys (lAxiom sys) count
 
 showResults ::  Main -> String -> ExceptT String IO ()
 showResults opts input = do
   text <- liftIO $ readFile input
   sys <- mapErrorM (parseRuleFile text)
-  plant <- growPlant opts sys
   mode <- liftIO $ mergeModeOpts opts
+  plant <- growPlant mode opts sys
   if mode == Test then
     liftIO $ putStrLn ("Final is " ++ plant)
   else
@@ -85,8 +88,7 @@ showResults opts input = do
 mergeModeOpts :: Main -> IO Mode
 mergeModeOpts opts =
   case opts of
-    _
-      | fractal opts && test opts ->
+    _ | fractal opts && test opts ->
           do
             putStrLn "\"--fractal\" and \"--test\" can not both be selected."
             return Exit
