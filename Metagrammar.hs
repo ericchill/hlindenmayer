@@ -121,7 +121,7 @@ skipRightRec _ [] t = return t
 skipRightRec meta stack t
   | isAtEnd t = throwE' "skipRight: Missing closing delimiter."
   | otherwise =
-    let x = (head . tapeHead) $! t
+    let x = (head . tapeHead) t
         newStack = case x of
           _ | closesBracket meta x (head stack) -> tail stack
             | isOpenBracket meta x              -> x : stack
@@ -144,7 +144,7 @@ skipAndCopyRec _ [] t = return ([], t)
 skipAndCopyRec meta stack t
   | isAtEnd t = throwE' "skipAndCopy: Missing closing delimiter."
   | otherwise =
-    let x = (head . tapeHead) $! t
+    let x = (head . tapeHead) t
         newStack = case x of
           _ | closesBracket meta x (head stack) -> tail stack
             | isOpenBracket meta x              -> x : stack

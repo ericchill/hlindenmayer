@@ -32,7 +32,7 @@ produceRec :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> ErrorIO [a]
 produceRec g t
   | isAtEnd t = return []
   | otherwise = do
-      (t', prod) <- mapErrorM $! produceOne g t
+      (t', prod) <- t `seq` mapErrorM $ produceOne g t
       chosen <- randomElement prod
       prod' <- produceRec g t'
       return $ chosen ++ prod'

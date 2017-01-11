@@ -13,20 +13,20 @@ import System.Console.CmdLib
 import System.Environment
 import System.Exit
 
-data Mode = Test | Fractal | Exit deriving (Eq)
+data Mode = GrammarOpt | Fractal | Exit deriving (Eq)
 
 data Main = Main {
   fractal    :: Bool,
+  grammar    :: Bool,
   input      :: String,
   iterations :: Int,
-  test       :: Bool,
   output     :: String
   } deriving (Typeable, Data, Eq)
 
 instance Attributes Main where          
   attributes _ = System.Console.CmdLib.group "Commands" [
-      test %> [ Help "Examine the results of grammar productions." ],
       fractal %> [ Help "Produce a fractal from the input rules." ],
+      grammar %> [ Help "Examine the results of grammar productions." ],
       iterations %> [ Help $ "Specifies how many iterations to run on the system. " ++
                       "This defaults to the number specified in the rules file.",
                       Short ['n'] ],
@@ -43,9 +43,9 @@ instance RecordCommand Main where
 defaultOpts :: Main
 defaultOpts = Main {
   fractal    = False,
+  grammar    = False,
   input      = "no input file specified",
   iterations = -1,
-  test       = False,
   output     = "-"
   }
   
@@ -63,7 +63,7 @@ derive mode sys start 0 = return start
 derive mode sys start n = do
   production <- produce (lGrammar sys) start
   derive mode sys ((
-    if mode == Test then Trace.trace ("step " ++ show n ++ ": " ++ show production)
+    if mode == GrammarOpt then trace ("step " ++ show n ++ ": " ++ show production)
     else id) production)
     (n - 1)
 
@@ -81,7 +81,7 @@ showResults opts input = do
   sys <- mapErrorM (parseRuleFile text)
   mode <- liftIO $ mergeModeOpts opts
   plant <- growPlant mode opts sys
-  if mode == Test then
+  if mode == GrammarOpt then
     liftIO $ putStrLn ("Final is " ++ plant)
   else
     povLSystem sys plant
@@ -89,10 +89,9 @@ showResults opts input = do
 mergeModeOpts :: Main -> IO Mode
 mergeModeOpts opts =
   case opts of
-    _ | fractal opts && test opts ->
-          do
-            putStrLn "\"--fractal\" and \"--test\" can not both be selected."
-            return Exit
-      | test opts -> return Test
+    _ | fractal opts && grammar opts -> do
+          putStrLn "\"--fractal\" and \"--grammar\" can not both be selected."
+          return Exit
+      | grammar opts -> return GrammarOpt
       | otherwise -> return Fractal
 

@@ -44,11 +44,10 @@ instance Turt PlotTurtle where
   drawLine t arg =
     let from = tPos t
         pen = max 0.1 $ tPen t
-    in
-      do
-        moved <- move t arg
-        (liftIO . putStrLn) $ showLine from (tPos moved) pen
-        return moved
+    in do
+      moved <- move t arg
+      (liftIO . putStrLn) $ showLine from (tPos moved) pen
+      return moved
 
   drawNoMark = drawLine
 
@@ -58,13 +57,13 @@ instance Turt PlotTurtle where
 
   getPos = tPos
   
-  setPos t x = return $! t { tPos = x }
+  setPos t x = return t { tPos = x }
   
   getOrientation = tOrient
   
-  setOrientation t o = return $! t { tOrient = o }
+  setOrientation t o = return t { tOrient = o }
     
-  resetOrientation t = return $! t { tOrient = initialOrientation }
+  resetOrientation t = return t { tOrient = initialOrientation }
 
   getPenWidth = tPen
   

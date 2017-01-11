@@ -49,7 +49,7 @@ randomElement a =
   if length a == 1 then return $ head a  -- conserve entropy
   else do
     i <- liftIO $ getStdRandom (randomR(0, length a - 1))
-    return $ a !! i
+    return $! a !! i
 
 
 -- Read a number. If there is a decimal point without a leading digit, insert one.
@@ -61,7 +61,7 @@ readM a@(a0:an) =
         _   -> a
   in
   case maybeRead a' of
-    Just b  -> return b
+    Just b  -> return  b
     Nothing -> throwE' (a ++ " can't be parsed as desired type.")
 
 
@@ -79,7 +79,7 @@ balancedSplit [] = return ("", "")
 balancedSplit s@(x:xs)
   | isOpenPunctuation x = do
     (result, remainder) <- balancedSplitRec [x] xs
-    return (init result, remainder)
+    return $ result `seq` (init result, remainder)
   | otherwise = return ("", s)
 
 balancedSplitRec :: String -> String -> ErrorM (String, String)

@@ -20,8 +20,8 @@ makeRule spec production = LRule [(spec, [production])]
 applyRule :: (Eq a, Show a) => LRule a -> Tape a -> ErrorM [[a]]
 applyRule (LRule rules) t = do
   matches <- filterM (\(spec, _) -> matchSpec spec t) rules
-  if null $! matches then return []
-    else return $ snd $ head matches
+  if null matches then return []
+    else return $ (snd . head) matches
 
 addSuccessor :: (Eq a, Show a) => RuleSpec a -> [a] -> LRule a -> LRule a
 addSuccessor spec prod rule@(LRule rules) =

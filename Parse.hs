@@ -45,6 +45,13 @@ parseRuleFile text =
         (emptySystem $ metagrammar "")
         (filterComments $ lines text)
 
+addLineToSystem :: (Turt a) => LSystem a Char -> String -> LSystemError a Char
+addLineToSystem sys [] = return sys
+addLineToSystem sys line
+  | "-->" `isInfixOf` line = addRule line sys
+  | ':' `elem` line        = addParam line sys
+  | otherwise              = throwE' $ "Don't know what to do with: " ++ line
+
 filterComments :: [String] -> [String]
 filterComments ls =
   fst $ foldr (\l (res, incomment) ->
@@ -55,13 +62,6 @@ filterComments ls =
               ) ([], False) $
   filter (not . ("--" `isPrefixOf`)) $
   filter (not.null) $ map strip ls
-
-addLineToSystem :: (Turt a) => LSystem a Char -> String -> LSystemError a Char
-addLineToSystem sys [] = return sys
-addLineToSystem sys line
-  | "-->" `isInfixOf` line = addRule line sys
-  | ':' `elem` line        = addParam line sys
-  | otherwise              = throwE' $ "Don't know what to do with: " ++ line
 
 addParam :: (Turt a) => String -> LSystem a Char -> LSystemError a Char
 addParam line sys

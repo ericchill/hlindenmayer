@@ -41,8 +41,8 @@ povTurtle = POVTurtle (V3 0 0 0) initialOrientation False [] 1
   
 showLine :: POVTurtle -> V3F -> V3F -> Double -> String
 showLine t p1 p2 p =
-  "cylinder{" ++ showV3 p1 ++ "," ++ showV3 p2 ++ "," ++ showFloat (p / 2.0) ++ (
-    if tTexture t /= "" then " texture{" ++ tTexture t ++ "}"
+  "cyl{" ++ showV3 p1 ++ "," ++ showV3 p2 ++ "," ++ showFloat (p / 2.0) ++ (
+    if tTexture t /= "" then " tex{" ++ tTexture t ++ "}"
     else "") ++ "}"
 
 showSphere :: POVTurtle -> V3F -> Double -> String
@@ -57,8 +57,8 @@ instance Turt POVTurtle where
         pen = max 0.1 $ tPen t
     in
       do
-        moved <- move t $! arg
-        liftIO $! putStrLn $! showLine t from (tPos moved) pen
+        moved <- move t arg
+        (liftIO . putStrLn) $ showLine t from (tPos moved) pen
         return moved
 
   drawNoMark = drawLine
@@ -67,22 +67,22 @@ instance Turt POVTurtle where
     let at = tPos t
         diam = max 0.1 $ tPen t
     in do
-      liftIO $! putStrLn $! showSphere t (tPos t) diam
+      (liftIO . putStrLn) $ showSphere t (tPos t) diam
       return t
 
   move t arg = do
-    dist <- mapErrorM $! getFloatArg arg t
-    return $ t { tPos = translateX (tOrient t) dist $! tPos t }
+    dist <- mapErrorM $ getFloatArg arg t
+    return $ t { tPos = translateX (tOrient t) dist $ tPos t }
 
   getPos = tPos
   
-  setPos t x = return $! t { tPos = x }
+  setPos t x = return $ t { tPos = x }
   
   getOrientation = tOrient
   
-  setOrientation t o = return $! t { tOrient = o }
+  setOrientation t o = return $ t { tOrient = o }
     
-  resetOrientation t = return $! t { tOrient = initialOrientation }
+  resetOrientation t = return $ t { tOrient = initialOrientation }
 
   startPolygon t =
     if tInPoly t then return t  -- igore
@@ -105,17 +105,17 @@ instance Turt POVTurtle where
   
   setPenWidth t arg = do
     width <- mapErrorM $ getFloatArg arg t
-    return $! t { tPen = width }
+    return $ t { tPen = width }
   
   setColor t _ = return t
   
   setTexture t arg = do
     texture <- mapErrorM $ getStringArg arg t
-    return $! t { tTexture = texture }
+    return $ t { tTexture = texture }
 
   getMacro t arg =
     getStringArg arg t >>= (\val ->
-    return $! fromMaybe [] $ Map.lookup val $ tMacros t)
+    return $ fromMaybe [] $ Map.lookup val $ tMacros t)
 
   getOpt t key def =
     case Map.lookup key $ tOptions t of
