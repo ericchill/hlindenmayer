@@ -47,7 +47,6 @@ matchSpecExact a b
 isPrefixOfIgnoring :: (Eq a) => Metagrammar a -> [a] -> [a] -> Bool
 isPrefixOfIgnoring meta pfx@(p:ps) (s:ss)
   | isIgnored meta s = isPrefixOfIgnoring meta pfx ss
-  | isWild meta s    = isPrefixOfIgnoring meta pfx ss
   | p == s           = isPrefixOfIgnoring meta ps ss
   | otherwise        = False
 isPrefixOfIgnoring _ [] _  = True

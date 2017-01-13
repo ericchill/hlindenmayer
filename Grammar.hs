@@ -12,21 +12,24 @@ import Utils
 import Metagrammar
 import Rule
 import Data.Foldable (toList)
+import Data.Function (on)
+import Data.List (sortBy)
 import Data.Maybe (fromJust)
 import qualified Data.Map.Strict as Map
 
 type GramError a = ErrorM (Tape a, [[a]])
 
 data Grammar a = Grammar {
-  gMeta  :: Metagrammar a,
-  gRules :: Map.Map [a] (LRule a)
+  gMeta             :: Metagrammar a,
+  gRules            :: Map.Map [a] (LRule a),
+  gLengthSortedKeys :: [[a]]
   } deriving (Show)
 
 newGrammar :: Metagrammar a -> Grammar a
-newGrammar meta = Grammar meta Map.empty
+newGrammar meta = Grammar meta Map.empty []
 
 produce :: (Eq a, Ord a, Show a) => Grammar a -> [a] -> ErrorIO [a]
-produce g s = produceRec g $ newTape s
+produce g s = produceRec g (newTape s)
 
 produceRec :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> ErrorIO [a]
 produceRec g t
@@ -36,36 +39,40 @@ produceRec g t
       chosen <- randomElement prod
       prod' <- produceRec g t'
       return $ chosen ++ prod'
-    
+
 produceOne :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> GramError a
 produceOne g t =
-  let fragment = "\"" ++ show (take 10 $ tapeHead t) ++ "\""
-      meta = gMeta g
-  in
+  let meta = gMeta g in
     case tapeHead t of
       [] -> return (t, [[]])
       (x:_)
-        | isBreak meta x -> do
-            t' <- skipRight meta t `amendE'` ("produceOne(0) " ++ fragment)
-            moveRight t' `amendE'` ("produceOne(1) " ++ fragment)
-            return (t', [[]])
+        | isBreak meta x -> produceBreak g t
         | isBlank meta x -> justCopy meta t
         | otherwise ->
             case lookupRule g t of
               Just (matched, rule) -> do
-                productions <- applyRule rule t
-                if null productions then justCopy meta t
-                  else do
-                    t' <- moveRightBy t matched
-                          `amendE'` ("produceOne(result) " ++ fragment)
-                    (_, t'') <- copyArgument meta t' -- skip over old argument
-                    return (t'', productions)
+                prods <- applyRule rule t
+                if null prods then justCopy meta t
+                else doProduction meta matched prods t
               Nothing -> justCopy meta t
+
+doProduction :: (Eq a, Ord a, Show a) =>
+  Metagrammar a -> [a] -> [[a]] -> Tape a -> GramError a
+doProduction meta matched prods t = do
+  t' <- moveRightBy (length matched) t `amendE'` "doProduction"
+  (_, t'') <- copyArgument meta t' -- skip over old argument
+  return (t'', prods)
+
+produceBreak :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> GramError a
+produceBreak g t = do
+  t' <- skipRight (gMeta g) t `amendE'` "produceBreak(1)"
+  moveRight t' `amendE'` "produceBreak(2)"
+  return (t', [[]])
 
 justCopy :: (Eq a, Show a) => Metagrammar a -> Tape a -> GramError a
 justCopy meta t = do
   let x = (head . tapeHead) t
-  t' <- moveRight t `amendE'` "justCopy(1)"
+  t' <- moveRight t `amendE'` "justCopy"
   (arg, t'') <- copyArgument meta t'
   return (t'', [x : arg])
 
@@ -85,12 +92,14 @@ addRuleFromSpec spec production g =
   let pred = rsPred spec
       rules = gRules g
   in
-    case Map.lookup pred rules of
-      Nothing -> g { gRules = Map.insert pred (makeRule spec production) rules }
-      Just aRule ->
-        g { gRules = Map.insert pred (addSuccessor spec production aRule) rules }
+    let newRules = case Map.lookup pred rules of
+          Nothing    -> Map.insert pred (makeRule spec production) rules
+          Just aRule -> Map.insert pred (addSuccessor spec production aRule) rules
+    in
+      g { gRules = newRules,
+          gLengthSortedKeys = sortBy (compare `on` length) $ Map.keys newRules }
 
 lookupRule :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> Maybe ([a], LRule a)
-lookupRule (Grammar _ rules) t = do
-  matched <- matchLongestPrefix (tapeHead t) $ Map.keys rules
+lookupRule (Grammar _ rules keys) t = do
+  matched <- matchLongestPrefix (tapeHead t) keys
   return (matched, fromJust $ Map.lookup matched rules)

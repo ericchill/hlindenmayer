@@ -5,6 +5,7 @@ module LSystem (
   ActionMap,
   emptySystem,
   addOption,
+  addFloatOption,
   getOptions,
   addMacro,
   getMacros,
@@ -35,8 +36,13 @@ type LSystemError a b = ErrorM (LSystem a b)
 emptySystem :: (Turt a) => Metagrammar b -> LSystem a b
 emptySystem meta = LSystem Map.empty Map.empty (newGrammar meta) []
 
+addFloatOption :: (Turt a) => LSystem a b -> String -> String -> LSystemError a b
+addFloatOption sys k v = do
+  f <- mapErrorM $ readM v `amendE'` ("Adding float option " ++ k)
+  return sys { lOptions = Map.insert k (FloatOpt f) $ lOptions sys }
+
 addOption :: (Turt a) => LSystem a b -> String -> String -> LSystem a b
-addOption sys k v = sys { lOptions = Map.insert k v $ lOptions sys }
+addOption sys k v = sys { lOptions = Map.insert k (StringOpt v) $ lOptions sys }
 
 getMacros :: (Turt a) => LSystem a b -> ActionMap a
 getMacros = lMacros
@@ -46,7 +52,7 @@ getOptions = lOptions
 
 addMacro :: (Turt a) => LSystem a b -> String -> String -> LSystemError a b
 addMacro sys k v = do
-  actions <- withExceptT (++ " in addMacro") (encodeActions v)
+  actions <- appendErrorT "addMacro" (encodeActions v 0.0)
   return $ sys { lMacros = Map.insert k actions $ lMacros sys }
 
 setAxiom :: (Turt a, Show b) => LSystem a b -> [b] -> LSystem a b

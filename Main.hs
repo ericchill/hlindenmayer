@@ -70,7 +70,7 @@ derive mode sys start n = do
 growPlant :: (Turt a) => Mode -> Main -> LSystem a Char -> ErrorIO String
 growPlant mode opts sys = do
   count <- if iterations opts == -1 then
-      mapErrorM $ getOption "iterate" 1 $ getOptions sys
+      mapErrorM $ getIntOption "iterate" 1 $ getOptions sys
     else
       return $ iterations opts
   derive mode sys (lAxiom sys) count
@@ -78,7 +78,7 @@ growPlant mode opts sys = do
 showResults ::  Main -> String -> ExceptT String IO ()
 showResults opts input = do
   text <- liftIO $ readFile input
-  sys <- mapErrorM (parseRuleFile text)
+  sys <- mapErrorM $! parseRuleFile text
   mode <- liftIO $ mergeModeOpts opts
   plant <- growPlant mode opts sys
   if mode == GrammarOpt then

@@ -1,12 +1,15 @@
 module Options (
   OptionMap,
+  OptionValue(..),
   FloatArg(..),
   floatConst,
   getFloatArg,
   StringArg(..),
   stringConst,
   getStringArg,
-  getOption,
+  getFloatOption,
+  getIntOption,
+  getStringOption,
   readM,
   ) where
 import Error
@@ -18,7 +21,10 @@ import qualified Data.Map.Strict as Map
 TODO - OptionMap should be String -> OptionValue
   where value is FloatArg, StringArg, ColorArg, ...
 -}
-type OptionMap = Map.Map String String
+
+data OptionValue = StringOpt String | FloatOpt Double | IntOpt Int
+
+type OptionMap = Map.Map String OptionValue
 
 data FloatArg a = FloatVar (a -> ErrorM Double) | FloatConst Double
 
@@ -46,8 +52,29 @@ getStringArg :: StringArg a -> a -> ErrorM String
 getStringArg (StringVar f) = f
 getStringArg (StringConst s) = return . const s
   
-getOption :: (Read a) => String -> a -> OptionMap -> ErrorM a
-getOption k def map =
+getIntOption :: String -> Int -> OptionMap -> ErrorM Int
+getIntOption k def map =
   case Map.lookup k map of
-    Just str -> readM str
+    Just x -> case x of
+      StringOpt str -> readM str
+      FloatOpt x    -> return $ round x
+      IntOpt x      -> return x
     Nothing  -> return def
+
+getFloatOption :: String -> Double -> OptionMap -> ErrorM Double
+getFloatOption k def map =
+  case Map.lookup k map of
+    Just x -> case x of
+      StringOpt str -> readM str
+      FloatOpt x    -> return x
+      IntOpt x      -> return $ fromIntegral x
+    Nothing  -> return def
+
+getStringOption :: String -> String -> OptionMap -> String
+getStringOption k def map =
+  case Map.lookup k map of
+    Just x -> case x of
+      StringOpt str -> str
+      FloatOpt x    -> show x
+      IntOpt x      -> show x
+    Nothing  -> def

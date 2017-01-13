@@ -18,6 +18,7 @@ import Linear.V3
 data POVTurtle = POVTurtle {
   tPos        :: TPosition,
   tOrient     :: TOrientation,  -- tOrient_x is speed
+  tAngle      :: Double,
   tInPoly     :: Bool,
   tPolyPoints :: [V3F],
   tPen        :: Double,
@@ -30,36 +31,47 @@ povLSystem :: LSystem POVTurtle Char -> String -> ErrorIO ()
 povLSystem sys lString =
   let options = getOptions sys
       macros  = getMacros sys
-      turtle = povTurtle macros options ""
    in do
-    actions <- mapErrorM $ encodeActions lString
+    turtle <- mapErrorM $ povTurtle macros options ""
+    actions <- mapErrorM $ encodeActions lString $ tAngle turtle
     foldActions actions turtle
     return ()
 
-povTurtle :: ActionMap POVTurtle -> OptionMap -> String -> POVTurtle
-povTurtle = POVTurtle (V3 0 0 0) initialOrientation False [] 1
+povTurtle :: ActionMap POVTurtle -> OptionMap -> String -> ErrorM POVTurtle
+povTurtle macros options texture = do
+  angle <- getFloatOption "delta" 90.0 options
+  return $
+    POVTurtle (V3 0 0 0) initialOrientation angle False [] 1 macros options texture
   
-showLine :: POVTurtle -> V3F -> V3F -> Double -> String
-showLine t p1 p2 p =
-  "cyl{" ++ showV3 p1 ++ "," ++ showV3 p2 ++ "," ++ showFloat (p / 2.0) ++ (
-    if tTexture t /= "" then " tex{" ++ tTexture t ++ "}"
-    else "") ++ "}"
+showLine :: POVTurtle -> V3F -> V3F -> String
+showLine t p1 p2 =
+  let fromStr = showV3 p1
+      toStr = showV3 p2
+  in
+    if fromStr /= toStr then
+      "cylinder{" ++ showV3 p1 ++ "," ++ showV3 p2 ++
+      "," ++ showFloat (tPen t / 2.0) ++
+      showTexture t ++ "}"
+    else ""
 
-showSphere :: POVTurtle -> V3F -> Double -> String
-showSphere t x d =
-  "sphere{" ++ showV3 (tPos t) ++ ", " ++ show (d / 2.0) ++ (
-  if tTexture t /= "" then " texture{" ++ tTexture t ++ "}"
-  else "") ++ "}"
+showSphere :: POVTurtle -> String
+showSphere t =
+  "sphere{" ++ showV3 (tPos t) ++
+  ", " ++ show (tPen t / 2.0) ++
+  showTexture t ++ "}"
+
+showTexture :: POVTurtle -> String
+showTexture t =
+  if tTexture t /= "" then
+    " texture{" ++ tTexture t ++ "}"
+  else
+    ""
 
 instance Turt POVTurtle where
-  drawLine t arg =
-    let from = tPos t
-        pen = max 0.1 $ tPen t
-    in
-      do
-        moved <- move t arg
-        (liftIO . putStrLn) $ showLine t from (tPos moved) pen
-        return moved
+  drawLine t arg = do
+    moved <- move t arg
+    (liftIO . putStrLn) $ showLine t (tPos t) (tPos moved)
+    return moved
 
   drawNoMark = drawLine
 
@@ -67,7 +79,7 @@ instance Turt POVTurtle where
     let at = tPos t
         diam = max 0.1 $ tPen t
     in do
-      (liftIO . putStrLn) $ showSphere t (tPos t) diam
+      (liftIO . putStrLn) $ showSphere t
       return t
 
   move t arg = do
@@ -117,10 +129,11 @@ instance Turt POVTurtle where
     getStringArg arg t >>= (\val ->
     return $ fromMaybe [] $ Map.lookup val $ tMacros t)
 
-  getOpt t key def =
-    case Map.lookup key $ tOptions t of
-      Just str -> readM str
-      Nothing  -> return def
+  getAngle t = return $ tAngle t * pi / 180.0
+
+  getFloatOpt t key def = getFloatOption key def $ tOptions t
+
+  getStringOpt t key def = return $ getStringOption key def $ tOptions t
 
   evalArgExpr exprStr t = readM exprStr
 

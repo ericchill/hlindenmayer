@@ -86,9 +86,6 @@ class Turt a where
     foldActions macro tur
 
   getAngle :: a -> ErrorM Double
-  getAngle t = do
-    val <- getOpt t "delta" 90.0
-    return $ val * pi / 180.0
   
   doAction :: a -> TAction a -> TurtleMonad a
   doAction t (Branch actions)   = foldActions actions t >> return t
@@ -116,7 +113,8 @@ class Turt a where
   doAction t _ = return t
 
   getMacro     :: a -> StringArg a -> ErrorM [TAction a]
-  getOpt       :: (Read b) => a -> String -> b -> ErrorM b
+  getStringOpt :: a -> String -> String -> ErrorM String
+  getFloatOpt  :: a -> String -> Double -> ErrorM Double
 
   evalArgExpr  :: (Read b) => String -> a -> ErrorM b
 
@@ -130,6 +128,12 @@ class Turt a where
     angle <- mapErrorM $ getFloatArg arg tur
     setOrientation tur $ rotateMatrix (getOrientation tur) axis (- angle)
     
+  
+foldActions :: (Turt a) => [TAction a] -> a -> TurtleMonad a
+foldActions actions t =
+  -- Strictness here saves about 50% memory in render phase.
+  t `seq` foldM doAction t actions
+
 
 data TAction a =
   Branch [TAction a] |
@@ -164,21 +168,21 @@ isNoop :: (Turt a) => TAction a -> Bool
 isNoop Noop = True
 isNoop _    = False
 
-encodeActions :: (Turt a) => String -> ErrorM [TAction a]
-encodeActions s = do
-  (_, actions) <- appendErrorT "in encodeActions" (encodeActionsRec s)
+encodeActions :: (Turt a) => String -> Double -> ErrorM [TAction a]
+encodeActions s angle = do
+  (_, actions) <- appendErrorT "in encodeActions" (encodeActionsRec s angle)
   return actions
 
-encodeActionsRec :: (Turt a) => String -> ErrorM (String, [TAction a])
-encodeActionsRec [] = do
-  (_, action) <- encodeAction []
+encodeActionsRec :: (Turt a) => String -> Double -> ErrorM (String, [TAction a])
+encodeActionsRec [] angle = do
+  (_, action) <- encodeAction [] angle
   if isNoop action then
     return ([], [])
   else
     return ([], [action])
-encodeActionsRec s = do
-  (rest, action) <- encodeAction s
-  (rest', actions) <- encodeActionsRec rest
+encodeActionsRec s angle = do
+  (rest, action) <- encodeAction s angle
+  (rest', actions) <- encodeActionsRec rest angle
   if isNoop action then
     return (rest', actions)
   else
@@ -186,37 +190,34 @@ encodeActionsRec s = do
 
 -- On error string is at error, otherwise it's after parsed action.
 -- Likely cause of future errors will be in parsing expressions as arguments.
-encodeAction :: (Turt a) => String -> ErrorM (String, TAction a)
-encodeAction [] = return ([], Noop)
-encodeAction s@(x:xs)
-  | x == '['  = encodeBranch xs
+encodeAction :: (Turt a) => String -> Double -> ErrorM (String, TAction a)
+encodeAction [] _ = return ([], Noop)
+encodeAction s@(x:xs) angle
+  | x == '['  = encodeBranch xs angle
   -- Things with length dimension
   | x `elem` "FGfp" = do
-      (arg, xs') <- encodeArg xs (return . const 1.0)
-      let farg = FloatVar arg
+      (arg, xs') <- encodeArg xs 1.0
       case x of
-        'F'  -> return (xs', DrawLine farg)
-        'G'  -> return (xs', DrawNoMark farg)
-        'f'  -> return (xs', Move farg)
-        'p'  -> return (xs', SetPenWidth farg)
+        'F'  -> return (xs', DrawLine arg)
+        'G'  -> return (xs', DrawNoMark arg)
+        'f'  -> return (xs', Move arg)
+        'p'  -> return (xs', SetPenWidth arg)
   -- Pen sizes grow and shrink by a scale factor.
   | x `elem` "'`" = do
-      (arg, xs') <- encodeArg xs (return . const 1.1)
-      let farg = FloatVar arg
+      (arg, xs') <- encodeArg xs 1.1
       case x of
-        '\'' -> return (xs', ShrinkPen farg)
-        '`'  -> return (xs', GrowPen farg)
+        '\'' -> return (xs', ShrinkPen arg)
+        '`'  -> return (xs', GrowPen arg)
   -- Things with angular dimensions
   | x `elem` "+-&^\\/" = do
-      (arg, xs') <- encodeArg xs getAngle
-      let farg = FloatVar arg
+      (arg, xs') <- encodeArg xs angle
       case x of
-        '+'  -> return (xs', TurnLeft farg)  -- + z
-        '-'  -> return (xs', TurnRight farg) -- - z
-        '&'  -> return (xs', PitchDown farg) -- - y
-        '^'  -> return (xs', PitchUp farg)   -- + y
-        '\\' -> return (xs', RollLeft farg)  -- + x
-        '/'  -> return (xs', RollRight farg) -- - x
+        '+'  -> return (xs', TurnLeft arg)  -- + z
+        '-'  -> return (xs', TurnRight arg) -- - z
+        '&'  -> return (xs', PitchDown arg) -- - y
+        '^'  -> return (xs', PitchUp arg)   -- + y
+        '\\' -> return (xs', RollLeft arg)  -- + x
+        '/'  -> return (xs', RollRight arg) -- - x
   -- Things with string args
   | x `elem` "COT" = do
       (arg, xs') <- encodeStringArg xs (return . const "")
@@ -249,38 +250,38 @@ encodeMultiChar s =
     'O' -> return (tail s, DrawSphere)
     _   -> throwE' $ "Don't know what @" ++ [head s] ++ " means."
   
-encodeBranch :: (Turt a) => String -> ErrorM (String, TAction a)
-encodeBranch s =
+encodeBranch :: (Turt a) => String -> Double -> ErrorM (String, TAction a)
+encodeBranch s angle =
   do
-    (rest, actions) <- encodeBranchRec s
+    (rest, actions) <- encodeBranchRec s angle
     if null actions then
       return (rest, Noop)
     else
       return (rest, Branch actions)
 
 -- Like encode actions, but expects a close bracket.
-encodeBranchRec :: (Turt a) => String -> ErrorM (String, [TAction a])
-encodeBranchRec [] = throwE' "Oops, branch ran off end."
-encodeBranchRec s@(x:xs)
+encodeBranchRec :: (Turt a) => String -> Double -> ErrorM (String, [TAction a])
+encodeBranchRec [] _ = throwE' "Oops, branch ran off end."
+encodeBranchRec s@(x:xs) angle
   | x == ']'  = return (xs, [])
   | otherwise =
     do
-      (rest, action) <- appendErrorT " in encodeBranchRec" (encodeAction s)
-      (rest', actions) <- encodeBranchRec rest
+      (rest, action) <- appendErrorT "encodeBranchRec" (encodeAction s angle)
+      (rest', actions) <- encodeBranchRec rest angle
       return (rest', action : actions)
 
-encodeArg :: (Read a, Turt b) => String -> (b -> ErrorM a) -> ErrorM (b -> ErrorM a, String)
-encodeArg [] def = return (def, [])
+encodeArg :: (Turt a) => String -> Double -> ErrorM (FloatArg a, String)
+encodeArg [] def = return (FloatConst def, [])
 encodeArg s@(x:xs) def
   -- Strictness saves about 5-10% memory
-  | x /= '('  = def `seq` return (def, s)
+  | x /= '('  = return (FloatConst def, s)
   | otherwise =
     if ')' `notElem` xs then throwE' "No close parenthesis for action argument."
     else do
       (expr, remaining) <- balancedSplit s
       case maybeRead expr of
-        Just x -> return (const x, remaining)
-        _      -> return (evalArgExpr expr, remaining) -- this is too early for evalArgExpr
+        Just x -> return (FloatConst x, remaining)
+        _      -> return (FloatVar $ evalArgExpr expr, remaining)
   
 encodeStringArg :: (Turt a) =>
   String -> (a -> ErrorM String) -> ErrorM (a -> ErrorM String, String)
@@ -292,13 +293,6 @@ encodeStringArg s@(x:xs) def
     else do
       (expr, remaining) <- balancedSplit s
       return (return . const expr, remaining)
-  
-  
-foldActions :: (Turt a) => [TAction a] -> a -> TurtleMonad a
-foldActions actions t =
-  -- Strictness here saves about 50% memory.
-  t `seq` foldM doAction t actions
-
 {-
   fastFuncs['?']  = &Turtle::pushPoint;
   fastFuncs['#']  = &Turtle::popAndDrawLine;

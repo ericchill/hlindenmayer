@@ -68,6 +68,7 @@ addParam line sys
   | param == "axiom"  = return $ setAxiom sys arg
   | param == "define" = addMacro sys `uncurry` stripSplit1 " " arg
   | param == "ignore" = return $ setIgnore sys arg
+  | param == "delta"  = addFloatOption sys param arg
   | null param        = throwE' $ "Malformed option: " ++ line
   | otherwise         = return $ addOption sys param arg
   where (param, arg) = stripSplit1 ":" line

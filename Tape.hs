@@ -18,6 +18,7 @@ module Tape (
 where
 import Error
 import Utils
+import Data.List (foldl')
 
 data Tape a = Tape {
   tLeft :: [a],
@@ -51,8 +52,12 @@ moveRight t
   where l = tLeft t
         (x:xs) = tRight t
 
-moveRightBy :: (Show a) => Tape a -> [b] -> TapeMonad a
-moveRightBy = foldM (\t _ -> moveRight t)
+moveRightBy :: (Show a) => Int -> Tape a -> TapeMonad a
+moveRightBy n t =
+  let newLeft = foldl' (flip (:)) (tLeft t) $ take n $ tRight t
+  in
+    return $ Tape newLeft $ drop n $ tRight t
+--  foldM (\t _ -> moveRight t)
 
 moveRightMatching :: (Eq a, Show a) => [a] -> Tape a -> TapeMonad a
 moveRightMatching x t =
