@@ -70,11 +70,11 @@ getFloatOption k def map =
       IntOpt x      -> return $ fromIntegral x
     Nothing  -> return def
 
-getStringOption :: String -> String -> OptionMap -> String
+getStringOption :: String -> String -> OptionMap -> ErrorM String
 getStringOption k def map =
   case Map.lookup k map of
     Just x -> case x of
-      StringOpt str -> str
-      FloatOpt x    -> show x
-      IntOpt x      -> show x
-    Nothing  -> def
+      StringOpt str -> return str
+      FloatOpt x    -> return $ show x
+      IntOpt x      -> return $ show x
+    Nothing  -> return def

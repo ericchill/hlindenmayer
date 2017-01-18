@@ -20,50 +20,49 @@ import Error
 import Utils
 import Data.List (foldl')
 
-data Tape a = Tape {
-  tLeft :: [a],
-  tRight :: [a]
+data Tape = Tape {
+  tLeft  :: String,
+  tRight :: String
   } deriving (Show)
   
-type TapeMonad a = ErrorM (Tape a)
+type TapeMonad= ErrorM Tape
 
-newTape :: [a] -> Tape a
+newTape :: String -> Tape
 newTape = Tape []
 
-isAtStart :: Tape a -> Bool
+isAtStart :: Tape -> Bool
 isAtStart = null . tLeft
 
-isAtEnd :: Tape a -> Bool
+isAtEnd :: Tape -> Bool
 isAtEnd = null . tRight
 
-tapeHead :: Tape a -> [a]
+tapeHead :: Tape -> String
 tapeHead = tRight
 
-tapeHeadLeft :: Tape a -> [a]
+tapeHeadLeft :: Tape -> String
 tapeHeadLeft = reverse . tLeft
 
-rewind :: Tape a -> Tape a
+rewind :: Tape -> Tape
 rewind t = Tape [] $ tapeHeadLeft t ++ tRight t
 
-moveRight :: (Show a) => Tape a -> TapeMonad a
+moveRight :: Tape -> TapeMonad
 moveRight t
   | isAtEnd t = throwE' "Tape already at right."
   | otherwise = return $ Tape (x:l) xs
   where l = tLeft t
         (x:xs) = tRight t
 
-moveRightBy :: (Show a) => Int -> Tape a -> TapeMonad a
+moveRightBy :: Int -> Tape -> TapeMonad
 moveRightBy n t =
   let newLeft = foldl' (flip (:)) (tLeft t) $ take n $ tRight t
   in
     return $ Tape newLeft $ drop n $ tRight t
---  foldM (\t _ -> moveRight t)
 
-moveRightMatching :: (Eq a, Show a) => [a] -> Tape a -> TapeMonad a
+moveRightMatching :: String -> Tape-> TapeMonad
 moveRightMatching x t =
   foldM (\t _ -> moveRight t) t $ takeWhile (uncurry (==)) $ zip x $ tRight t
 
-moveLeft :: Tape a -> TapeMonad a
+moveLeft :: Tape -> TapeMonad
 moveLeft t
   | isAtStart t = throwE' "Tape already at left."
   | otherwise = return $ Tape xs (x:r)

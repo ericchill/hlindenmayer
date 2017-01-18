@@ -17,21 +17,21 @@ import Data.List (sortBy)
 import Data.Maybe (fromJust)
 import qualified Data.Map.Strict as Map
 
-type GramError a = ErrorM (Tape a, [[a]])
+type GramError = ErrorM (Tape, [String])
 
-data Grammar a = Grammar {
-  gMeta             :: Metagrammar a,
-  gRules            :: Map.Map [a] (LRule a),
-  gLengthSortedKeys :: [[a]]
+data Grammar = Grammar {
+  gMeta             :: Metagrammar,
+  gRules            :: Map.Map String LRule,
+  gLengthSortedKeys :: [String]
   } deriving (Show)
 
-newGrammar :: Metagrammar a -> Grammar a
+newGrammar :: Metagrammar -> Grammar
 newGrammar meta = Grammar meta Map.empty []
 
-produce :: (Eq a, Ord a, Show a) => Grammar a -> [a] -> ErrorIO [a]
+produce :: Grammar -> String -> ErrorIO String
 produce g s = produceRec g (newTape s)
 
-produceRec :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> ErrorIO [a]
+produceRec :: Grammar -> Tape -> ErrorIO String
 produceRec g t
   | isAtEnd t = return []
   | otherwise = do
@@ -40,7 +40,7 @@ produceRec g t
       prod' <- produceRec g t'
       return $ chosen ++ prod'
 
-produceOne :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> GramError a
+produceOne :: Grammar -> Tape -> GramError
 produceOne g t =
   let meta = gMeta g in
     case tapeHead t of
@@ -56,38 +56,37 @@ produceOne g t =
                 else doProduction meta matched prods t
               Nothing -> justCopy meta t
 
-doProduction :: (Eq a, Ord a, Show a) =>
-  Metagrammar a -> [a] -> [[a]] -> Tape a -> GramError a
+doProduction :: Metagrammar -> String -> [String] -> Tape -> GramError
 doProduction meta matched prods t = do
   t' <- moveRightBy (length matched) t `amendE'` "doProduction"
   (_, t'') <- copyArgument meta t' -- skip over old argument
   return (t'', prods)
 
-produceBreak :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> GramError a
+produceBreak :: Grammar -> Tape -> GramError
 produceBreak g t = do
   t' <- skipRight (gMeta g) t `amendE'` "produceBreak(1)"
   moveRight t' `amendE'` "produceBreak(2)"
   return (t', [[]])
 
-justCopy :: (Eq a, Show a) => Metagrammar a -> Tape a -> GramError a
+justCopy :: Metagrammar -> Tape -> GramError
 justCopy meta t = do
   let x = (head . tapeHead) t
   t' <- moveRight t `amendE'` "justCopy"
   (arg, t'') <- copyArgument meta t'
   return (t'', [x : arg])
 
-copyArgument :: (Eq a, Show a) => Metagrammar a -> Tape a -> ErrorM ([a], Tape a)
+copyArgument :: Metagrammar -> Tape -> ErrorM (String, Tape)
 copyArgument meta t
-  | isAtEnd t = return ([], t)  -- isOpenBracket may fail if we don't do this first
+  | isAtEnd t = return ([], t)
   | isFuncArg meta $ (head . tapeHead) t = do
       (rest, t') <- skipAndCopy meta t `amendE'` "copyArgument"
       return ((head . tapeHead) t : rest, t')
   | otherwise = return ([], t)
 
-gSetIgnore :: (Eq a) => [a] -> Grammar a -> Grammar a
+gSetIgnore :: String -> Grammar -> Grammar
 gSetIgnore x g = g { gMeta = mSetIgnore x $ gMeta g }
 
-addRuleFromSpec :: (Ord a, Show a) => RuleSpec a -> [a] -> Grammar a -> Grammar a
+addRuleFromSpec :: RuleSpec -> String -> Grammar -> Grammar
 addRuleFromSpec spec production g =
   let pred = rsPred spec
       rules = gRules g
@@ -99,7 +98,7 @@ addRuleFromSpec spec production g =
       g { gRules = newRules,
           gLengthSortedKeys = sortBy (compare `on` length) $ Map.keys newRules }
 
-lookupRule :: (Eq a, Ord a, Show a) => Grammar a -> Tape a -> Maybe ([a], LRule a)
+lookupRule :: Grammar -> Tape -> Maybe (String, LRule)
 lookupRule (Grammar _ rules keys) t = do
   matched <- matchLongestPrefix (tapeHead t) keys
   return (matched, fromJust $ Map.lookup matched rules)

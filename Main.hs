@@ -58,7 +58,7 @@ main = getArgs >>= executeR defaultOpts >>= \opts -> do
         liftIO exitFailure)
   return ()
 
-derive :: (Turt a, Eq b, Ord b, Show b) => Mode -> LSystem a b -> [b] -> Int -> ErrorIO [b]
+derive :: (Turt a) => Mode -> LSystem a -> String -> Int -> ErrorIO String
 derive mode sys start 0 = return start
 derive mode sys start n = do
   production <- produce (lGrammar sys) start
@@ -67,7 +67,7 @@ derive mode sys start n = do
     else id) production)
     (n - 1)
 
-growPlant :: (Turt a) => Mode -> Main -> LSystem a Char -> ErrorIO String
+growPlant :: (Turt a) => Mode -> Main -> LSystem a -> ErrorIO String
 growPlant mode opts sys = do
   count <- if iterations opts == -1 then
       mapErrorM $ getIntOption "iterate" 1 $ getOptions sys

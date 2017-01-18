@@ -12,18 +12,18 @@ import Tape
 import Data.AssocList
 import Data.String.Utils
 
-data LRule a = LRule (AssocList (RuleSpec a) [[a]]) deriving (Eq, Show)
+data LRule = LRule (AssocList RuleSpec [String]) deriving (Eq, Show)
 
-makeRule :: RuleSpec a -> [a] -> LRule a
+makeRule :: RuleSpec -> String -> LRule
 makeRule spec production = LRule [(spec, [production])]
 
-applyRule :: (Eq a, Show a) => LRule a -> Tape a -> ErrorM [[a]]
+applyRule :: LRule -> Tape -> ErrorM [String]
 applyRule (LRule rules) t = do
   matches <- filterM (\(spec, _) -> matchSpec spec t) rules
   if null matches then return []
     else return $ (snd . head) matches
 
-addSuccessor :: (Eq a, Show a) => RuleSpec a -> [a] -> LRule a -> LRule a
+addSuccessor :: RuleSpec -> String -> LRule -> LRule
 addSuccessor spec prod rule@(LRule rules) =
   let productions = lookup1 spec rules
   in

@@ -83,8 +83,6 @@ instance Turt PlotTurtle where
       Just str -> readM str
       Nothing  -> return def
 
-  evalArgExpr exprStr t = readM exprStr
-
 -- Return an initial orientation matrix suitable for a plant.
 initialOrientation :: M33F
 initialOrientation =

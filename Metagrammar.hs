@@ -15,30 +15,29 @@ import Tape
 import Control.Applicative
 import Control.Monad
 
-data Metagrammar a = Metagrammar {
-  isOpenBracket  :: a -> Bool,
-  isCloseBracket :: a -> Bool,
-  closesBracket  :: a -> a -> Bool,
-  isFuncArg      :: a -> Bool,
-  isBlank        :: a -> Bool,
-  isIgnored      :: a -> Bool,
-  isWild         :: a -> Bool,
-  isBreak        :: a -> Bool,
-  nullSym        :: a,
-  rsSig          :: [a]
+data Metagrammar = Metagrammar {
+  isOpenBracket  :: Char -> Bool,
+  isCloseBracket :: Char -> Bool,
+  closesBracket  :: Char -> Char -> Bool,
+  isFuncArg      :: Char -> Bool,
+  isBlank        :: Char -> Bool,
+  isIgnored      :: Char -> Bool,
+  isWild         :: Char -> Bool,
+  isBreak        :: Char -> Bool,
+  rsSig          :: String
   }
 
-instance (Eq a) => Eq (Metagrammar a) where
+instance Eq Metagrammar where
   a == b = rsSig a == rsSig b
 
-instance (Show a) => Show (Metagrammar a) where
+instance Show Metagrammar where
   show a = "(Metagrammar " ++ show (rsSig a) ++ ")"
 
-mSetIgnore :: (Eq a) => [a] -> Metagrammar a -> Metagrammar a
+mSetIgnore :: String -> Metagrammar -> Metagrammar
 mSetIgnore a m = m { isIgnored = (`elem` a) }
 
-testMeta :: a -> a -> Metagrammar a
-testMeta nullEl forType =
+testMeta :: Char -> Metagrammar
+testMeta forType =
   let cf = const False
       cf2 = const (const False)
   in
@@ -51,12 +50,11 @@ testMeta nullEl forType =
     isIgnored      = cf,
     isWild         = cf,
     isBreak        = cf,
-    nullSym       = nullEl,
     rsSig          = [forType]
     }
 
 -- Check left context
-lcondiff :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> ErrorM Bool
+lcondiff :: Metagrammar -> String -> Tape -> ErrorM Bool
 lcondiff _    []  _ = return True
 lcondiff meta [x] _ = return $ isWild meta x
 lcondiff meta s@(x:xs) t =
@@ -74,7 +72,7 @@ lcondiff meta s@(x:xs) t =
          diffNext = join $ lcondiff meta xs <$> t'
 
 -- Check right context
-rcondiff :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> ErrorM Bool
+rcondiff :: Metagrammar -> String -> Tape -> ErrorM Bool
 rcondiff _    []  _ = return True
 rcondiff meta [x] _ = return $ isWild meta x
 rcondiff meta s@(x:xs) t =
@@ -93,12 +91,12 @@ rcondiff meta s@(x:xs) t =
         diffNext = t' >>= rcondiff meta xs
   
 -- Leave head to left of item
-skipLeft :: (Eq a) => Metagrammar a -> Tape a -> TapeMonad a
+skipLeft :: Metagrammar -> Tape -> TapeMonad
 skipLeft meta t
   | isAtStart t = throwE' "Already at end in skipLeft"
   | otherwise   = skipLeftRec meta [(head . tapeHead) t] t
 
-skipLeftRec :: (Eq a) => Metagrammar a -> [a] -> Tape a -> TapeMonad a
+skipLeftRec :: Metagrammar -> String -> Tape -> TapeMonad
 skipLeftRec _ [] t = return t
 skipLeftRec meta delimStack@(d:ds) t
   | isAtStart t              = throwE' "skipLeft: Missing opening delimiter."
@@ -109,14 +107,14 @@ skipLeftRec meta delimStack@(d:ds) t
         x = (head . tapeHead) t
 
 -- Skip right, balancing parenthesis &c.
-skipRight :: (Eq a, Show a) => Metagrammar a -> Tape a -> TapeMonad a
+skipRight :: Metagrammar -> Tape -> TapeMonad
 skipRight meta t
   | isAtEnd t  = throwE' "Already at end in skipAndCopy"
   | otherwise  = do
       t' <- moveRight t
       skipRightRec meta [(head . tapeHead) t] t'
 
-skipRightRec :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> TapeMonad a
+skipRightRec :: Metagrammar -> String -> Tape -> TapeMonad
 skipRightRec _ [] t = return t
 skipRightRec meta stack t
   | isAtEnd t = throwE' "skipRight: Missing closing delimiter."
@@ -130,16 +128,16 @@ skipRightRec meta stack t
       t' <- moveRight t `amendE'` "skipRight"
       skipRightRec meta newStack t'
 
--- For a string starting with a balanced delimiter, copy up to the left of the close
--- and return tape position to the right.
-skipAndCopy :: (Eq a, Show a) => Metagrammar a -> Tape a -> ErrorM ([a], Tape a)
+-- For a string starting with a balanced delimiter, copy up to the left of
+-- the close and return tape position to the right.
+skipAndCopy :: Metagrammar -> Tape -> ErrorM (String, Tape)
 skipAndCopy meta t
   | isAtEnd t  = throwE' "Already at end in skipAndCopy"
   | otherwise  = do
       t' <- moveRight t
       skipAndCopyRec meta [(head . tapeHead) t] t'
 
-skipAndCopyRec :: (Eq a, Show a) => Metagrammar a -> [a] -> Tape a -> ErrorM ([a], Tape a)
+skipAndCopyRec :: Metagrammar -> String -> Tape -> ErrorM (String, Tape)
 skipAndCopyRec _ [] t = return ([], t)
 skipAndCopyRec meta stack t
   | isAtEnd t = throwE' "skipAndCopy: Missing closing delimiter."

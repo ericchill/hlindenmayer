@@ -22,26 +22,42 @@ data POVTurtle = POVTurtle {
   tInPoly     :: Bool,
   tPolyPoints :: [V3F],
   tPen        :: Double,
+  tPenScale   :: Double,
+  tColor      :: String,
+  tTexture    :: String,
   tMacros     :: ActionMap POVTurtle,
-  tOptions    :: OptionMap,
-  tTexture    :: String
+  tOptions    :: OptionMap
   }
 
-povLSystem :: LSystem POVTurtle Char -> String -> ErrorIO ()
+povLSystem :: LSystem POVTurtle -> String -> ErrorIO ()
 povLSystem sys lString =
   let options = getOptions sys
       macros  = getMacros sys
    in do
-    turtle <- mapErrorM $ povTurtle macros options ""
-    actions <- mapErrorM $ encodeActions lString $ tAngle turtle
+    turtle <- mapErrorM $ povTurtle macros options
+    actions <- mapErrorM $ encodeActions lString
     foldActions actions turtle
     return ()
 
-povTurtle :: ActionMap POVTurtle -> OptionMap -> String -> ErrorM POVTurtle
-povTurtle macros options texture = do
+povTurtle :: ActionMap POVTurtle -> OptionMap -> ErrorM POVTurtle
+povTurtle macros options = do
   angle <- getFloatOption "delta" 90.0 options
-  return $
-    POVTurtle (V3 0 0 0) initialOrientation angle False [] 1 macros options texture
+  penScale <- getFloatOption "pen_scale" 1.1 options
+  color <- getStringOption "color" "" options
+  texture <- getStringOption "texture" "" options
+  return POVTurtle {
+    tPos = V3 0 0 0,
+    tOrient = initialOrientation,
+    tAngle = angle,
+    tInPoly = False,
+    tPolyPoints = [],
+    tPen = 1,
+    tPenScale = penScale,
+    tColor = color,
+    tTexture = texture,
+    tMacros = macros,
+    tOptions = options
+    }
   
 showLine :: POVTurtle -> V3F -> V3F -> String
 showLine t p1 p2 =
@@ -118,9 +134,21 @@ instance Turt POVTurtle where
   setPenWidth t arg = do
     width <- mapErrorM $ getFloatArg arg t
     return $ t { tPen = width }
+
+  getPenScale = return . tPenScale
   
-  setColor t _ = return t
-  
+  setPenScale t arg = do
+    s <- mapErrorM $ getFloatArg arg t
+    return $ t { tPenScale = s }
+
+  getColor = return . tColor
+
+  setColor t arg = do
+    c <- mapErrorM $ getStringArg arg t
+    return $ t { tColor = c }
+
+  getTexture = return . tTexture
+    
   setTexture t arg = do
     texture <- mapErrorM $ getStringArg arg t
     return $ t { tTexture = texture }
@@ -131,11 +159,13 @@ instance Turt POVTurtle where
 
   getAngle t = return $ tAngle t * pi / 180.0
 
+  setAngle t arg = do
+    a <- mapErrorM $ getFloatArg arg t
+    return $ t { tAngle = a }
+
   getFloatOpt t key def = getFloatOption key def $ tOptions t
 
-  getStringOpt t key def = return $ getStringOption key def $ tOptions t
-
-  evalArgExpr exprStr t = readM exprStr
+  getStringOpt t key def = getStringOption key def $ tOptions t
 
 initialOrientation :: M33F
 initialOrientation =

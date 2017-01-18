@@ -52,7 +52,8 @@ randomElement a =
     return $! a !! i
 
 
--- Read a number. If there is a decimal point without a leading digit, insert one.
+-- Read a number. If there is a decimal point without a leading digit,
+-- insert one.
 readM :: (Read a) => String -> ErrorM a
 readM [] = throwE' "Can't make number out of empty string."
 readM a@(a0:an) =
