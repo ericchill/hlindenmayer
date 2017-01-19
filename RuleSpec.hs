@@ -1,5 +1,6 @@
 module RuleSpec (
   RuleSpec(..),
+  makeRuleSpec,
   matchSpec,
   matchSpecExact,
   Metagrammar,
@@ -17,15 +18,18 @@ data RuleSpec = RuleSpec {
   rsRight :: String
   } deriving (Eq, Show)
 
+makeRuleSpec :: Metagrammar -> String -> String -> String -> RuleSpec
+makeRuleSpec = RuleSpec
+
 matchSpec :: RuleSpec -> Tape -> ErrorM Bool
-matchSpec spec@(RuleSpec meta l p r) t =
-    if isPrefixOfIgnoring meta p $ tapeHead t then
-      (lcondiff meta l t &&&& rcondiff meta r t)
-        `amendE'` ("matchSpec " ++ show l ++ " < " ++
+matchSpec spec@(RuleSpec meta l p r) t = do
+  if isPrefixOfIgnoring meta p (tapeHead t) then
+    (lcondiff meta l t &&&& rcondiff meta r t)
+        `amendE'` ("matchSpec2 " ++ show l ++ " < " ++
                    show p ++
                    " > " ++ show r ++
-                  "; t @ " ++ show (tapeHead t))
-    else return False
+                  ", t = " ++ tShow t)
+  else return False
 
 matchSpecExact :: RuleSpec -> RuleSpec -> Bool
 matchSpecExact a b
@@ -40,10 +44,9 @@ matchSpecExact a b
     notWild = not . isWild ma . head
 
 isPrefixOfIgnoring :: Metagrammar -> String -> String -> Bool
+isPrefixOfIgnoring _ [] _ = True
+isPrefixOfIgnoring _ _ [] = False
 isPrefixOfIgnoring meta pfx@(p:ps) (s:ss)
   | isIgnored meta s = isPrefixOfIgnoring meta pfx ss
   | p == s           = isPrefixOfIgnoring meta ps ss
   | otherwise        = False
-isPrefixOfIgnoring _ [] _  = True
-isPrefixOfIgnoring _ _ _  = False
-

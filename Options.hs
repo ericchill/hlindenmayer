@@ -23,6 +23,7 @@ TODO - OptionMap should be String -> OptionValue
 -}
 
 data OptionValue = StringOpt String | FloatOpt Double | IntOpt Int
+       deriving (Show)
 
 type OptionMap = Map.Map String OptionValue
 

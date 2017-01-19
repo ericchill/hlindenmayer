@@ -4,3 +4,6 @@
 *.o
 *.hi
 Main
+dist
+*.prof
+hlindenmayer

@@ -4,8 +4,8 @@ module Error (
   throwE',
   catchE',
   amendE',
-  appendErrorT,
   mapErrorM,
+  mapNothing,
   trace,
   module Control.Monad.Except,
   module Control.Monad.Identity
@@ -27,16 +27,19 @@ catchE' :: (Monad m) =>
 catchE' = catchError
 
 amendE' :: (Monad m) => ExceptT String m a -> String -> ExceptT String m a
-amendE' m extra = m `catchError` \err -> throwError $ err ++ "; " ++ extra
+amendE' m extra = m `catchError` \err -> throwError $ err ++ "\n" ++ extra
   
-appendErrorT :: String -> ErrorM a -> ErrorM a
-appendErrorT a = withExceptT (++ "; " ++ a)
-
 mapErrorM :: (Monad m) => ErrorM a -> ExceptT String m a
 mapErrorM = mapExceptT (return . runIdentity)
+
+mapNothing :: String -> Maybe a -> ErrorM a
+mapNothing err a =
+  case a of
+    Just x  -> return x
+    Nothing -> throwE' err
 
 trace :: String -> a -> a
 trace msg arg = if traceOn then Trace.trace msg arg else arg
 
 traceOn :: Bool
-traceOn = True
+traceOn = False

@@ -44,12 +44,12 @@ lNot = liftA not
 
 
 -- Return a random element from a list.
-randomElement :: (Show a) => [a] -> ErrorIO a
+randomElement :: [String] -> ErrorIO String
 randomElement a =
   if length a == 1 then return $ head a  -- conserve entropy
   else do
     i <- liftIO $ getStdRandom (randomR(0, length a - 1))
-    return $! a !! i
+    return $ a !! i
 
 
 -- Read a number. If there is a decimal point without a leading digit,
@@ -74,25 +74,27 @@ stripSplit1 delim s =
     (strip first, strip $ drop (length delim) remainder)
 
 
--- balancedSplit input at open punctuation -> ErrorM (before punct., after punct.)
+-- balancedSplit input at open punctuation ->
+--   ErrorM (before punct., after punct.)
 balancedSplit :: String -> ErrorM (String, String)
 balancedSplit [] = return ("", "")
-balancedSplit s@(x:xs)
-  | isOpenPunctuation x = do
+balancedSplit s@(x:xs) =
+  if isOpenPunctuation x then do
     (result, remainder) <- balancedSplitRec [x] xs
-    return $ result `seq` (init result, remainder)
-  | otherwise = return ("", s)
+    return (init result, remainder)
+  else
+    return ("", s)
 
 balancedSplitRec :: String -> String -> ErrorM (String, String)
-balancedSplitRec [] s = return ("", s)
-balancedSplitRec (_:_) [] = throwE' "Missing close delimiter in balancedSplitRec."
+balancedSplitRec [] s = return (empty, s)
+balancedSplitRec _ [] = throwE' "Missing close delimiter in balancedSplitRec."
 balancedSplitRec stack (x:xs) =
   let newStack = case x of
         _ | x `closes` head stack -> tail stack
           | isOpenPunctuation x   -> x : stack
           | otherwise             -> stack
   in do
-    (within, remaining) <-balancedSplitRec newStack xs
+    (within, remaining) <- balancedSplitRec newStack xs
     return (x : within, remaining)
 
 isOpenPunctuation :: Char -> Bool
@@ -109,10 +111,8 @@ closes close open
   | otherwise = False
 
 
-matchLongestPrefix :: (Eq a, Show a) => [a] -> [[a]] -> Maybe [a]
+matchLongestPrefix :: String -> [String] -> Maybe String
 matchLongestPrefix s prefixes =
-  case
-       filter (`isPrefixOf` s) $ sortBy (compare `on` length) prefixes
-  of
+  case filter (`isPrefixOf` s) prefixes of
     [] -> Nothing
     x  -> Just $ head x

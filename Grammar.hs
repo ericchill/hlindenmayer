@@ -41,20 +41,19 @@ produceRec g t
       return $ chosen ++ prod'
 
 produceOne :: Grammar -> Tape -> GramError
-produceOne g t =
-  let meta = gMeta g in
-    case tapeHead t of
-      [] -> return (t, [[]])
-      (x:_)
-        | isBreak meta x -> produceBreak g t
-        | isBlank meta x -> justCopy meta t
-        | otherwise ->
-            case lookupRule g t of
-              Just (matched, rule) -> do
-                prods <- applyRule rule t
-                if null prods then justCopy meta t
-                else doProduction meta matched prods t
-              Nothing -> justCopy meta t
+produceOne g t
+  | isAtEnd t      = return (t, [[]])
+  | isBreak meta x = produceBreak g t
+  | isBlank meta x = justCopy meta t
+  | otherwise =
+      case lookupRule g t of
+        Just (matched, rule) -> do
+          prods <- applyRule rule t
+          if Prelude.null prods then justCopy meta t
+          else doProduction meta matched prods t
+        Nothing -> justCopy meta t
+  where meta = gMeta g
+        x = tapeAtHead t
 
 doProduction :: Metagrammar -> String -> [String] -> Tape -> GramError
 doProduction meta matched prods t = do
@@ -64,39 +63,40 @@ doProduction meta matched prods t = do
 
 produceBreak :: Grammar -> Tape -> GramError
 produceBreak g t = do
-  t' <- skipRight (gMeta g) t `amendE'` "produceBreak(1)"
-  moveRight t' `amendE'` "produceBreak(2)"
+  t' <- skipRight (gMeta g) t `amendE'` "produceBreak"
+  moveRight t' `amendE'` "produceBreak"
   return (t', [[]])
 
 justCopy :: Metagrammar -> Tape -> GramError
 justCopy meta t = do
-  let x = (head . tapeHead) t
   t' <- moveRight t `amendE'` "justCopy"
   (arg, t'') <- copyArgument meta t'
-  return (t'', [x : arg])
+  return (t'', [tapeAtHead t : arg])
 
 copyArgument :: Metagrammar -> Tape -> ErrorM (String, Tape)
 copyArgument meta t
-  | isAtEnd t = return ([], t)
-  | isFuncArg meta $ (head . tapeHead) t = do
+  | isAtEnd t        = return ([], t)
+  | isFuncArg meta x = do
       (rest, t') <- skipAndCopy meta t `amendE'` "copyArgument"
-      return ((head . tapeHead) t : rest, t')
+      return (x : rest, t')
   | otherwise = return ([], t)
+  where x = tapeAtHead t
 
 gSetIgnore :: String -> Grammar -> Grammar
 gSetIgnore x g = g { gMeta = mSetIgnore x $ gMeta g }
 
 addRuleFromSpec :: RuleSpec -> String -> Grammar -> Grammar
-addRuleFromSpec spec production g =
+addRuleFromSpec spec prod g =
   let pred = rsPred spec
       rules = gRules g
+      newRules =
+        case Map.lookup pred rules of
+          Nothing    -> Map.insert pred (makeRule spec prod) rules
+          Just aRule -> Map.insert pred (addSuccessor spec prod aRule) rules
   in
-    let newRules = case Map.lookup pred rules of
-          Nothing    -> Map.insert pred (makeRule spec production) rules
-          Just aRule -> Map.insert pred (addSuccessor spec production aRule) rules
-    in
-      g { gRules = newRules,
-          gLengthSortedKeys = sortBy (compare `on` length) $ Map.keys newRules }
+    g { gRules = newRules,
+        gLengthSortedKeys = sortBy (compare `on` length) $
+                            Map.keys newRules }
 
 lookupRule :: Grammar -> Tape -> Maybe (String, LRule)
 lookupRule (Grammar _ rules keys) t = do

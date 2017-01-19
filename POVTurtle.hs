@@ -66,7 +66,7 @@ showLine t p1 p2 =
   in
     if fromStr /= toStr then
       "cylinder{" ++ showV3 p1 ++ "," ++ showV3 p2 ++
-      "," ++ showFloat (tPen t / 2.0) ++
+      "," ++ showFloat (0.5 * tPen t) ++
       showTexture t ++ "}"
     else ""
 

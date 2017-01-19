@@ -104,8 +104,8 @@ parseRuleSpec2 meta left str
   | not $ null right =
     case center of
       "" -> throwE' "No center element in RuleSpec."
-      center -> return $ RuleSpec meta left center right
-  | otherwise = return $ RuleSpec meta left str "*"
+      center -> return $ makeRuleSpec meta left center right
+  | otherwise = return $ makeRuleSpec meta left str "*"
   where
     (center, right) = stripSplit1 ">" str
 

@@ -33,6 +33,11 @@ data LSystem a = LSystem {
 
 type LSystemError a = ErrorM (LSystem a)
 
+instance Show (LSystem a) where
+  show s = "LSystem { lGrammar = " ++ show (lGrammar s) ++
+    ", lAxiom = " ++ show (lAxiom s) ++
+    "}"
+
 emptySystem :: (Turt a) => Metagrammar -> LSystem a
 emptySystem meta = LSystem Map.empty Map.empty (newGrammar meta) []
 
@@ -52,7 +57,7 @@ getOptions = lOptions
 
 addMacro :: (Turt a) => LSystem a -> String -> String -> LSystemError a
 addMacro sys k v = do
-  actions <- appendErrorT ("addMacro: " ++ k ++ "=" ++ show v) (encodeActions v)
+  actions <- encodeActions v `amendE'` ("addMacro: " ++ k ++ "=" ++ show v)
   return $ sys { lMacros = Map.insert k actions $ lMacros sys }
 
 setAxiom :: (Turt a) => LSystem a -> String -> LSystem a

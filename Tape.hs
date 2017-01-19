@@ -1,9 +1,8 @@
--- A tape like object with a read head between two lists.
+-- A sequential object for reading before and after the current index.
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# OPTIONS -fno-warn-name-shadowing #-}
-
 module Tape (
   Tape(..),
+  tShow,
   TapeMonad,
   newTape,
   isAtEnd,
@@ -14,57 +13,75 @@ module Tape (
   moveRightMatching,
   moveLeft,
   tapeHead,
+  tapeAtHead
   )
 where
 import Error
 import Utils
-import Data.List (foldl')
+import qualified Data.Text as T
+import qualified Data.Text.Array as A
+import qualified Data.Text.Internal as TI
+import qualified Data.Text.Internal.Unsafe.Char as TC
 
 data Tape = Tape {
-  tLeft  :: String,
-  tRight :: String
-  } deriving (Show)
-  
-type TapeMonad= ErrorM Tape
+  tIndex :: Int,
+  tMax   :: Int,
+  tData  :: T.Text
+  }
+
+type TapeMonad = ErrorM Tape
+
+tShow :: Tape -> String
+tShow t = show $ snd $ T.splitAt (tIndex t) $ tData t
 
 newTape :: String -> Tape
-newTape = Tape []
+newTape x = Tape {
+  tIndex = 0,
+    tMax   = length x,
+    tData  = T.pack x
+  }
 
 isAtStart :: Tape -> Bool
-isAtStart = null . tLeft
+isAtStart t = tIndex t == 0
 
 isAtEnd :: Tape -> Bool
-isAtEnd = null . tRight
+isAtEnd t = tIndex t == tMax t
 
 tapeHead :: Tape -> String
-tapeHead = tRight
+tapeHead t = unsafeMiddleStr (tData t) (tIndex t)
+--tapeHead t = T.unpack $ snd $ T.splitAt (tIndex t) (tData t)
 
-tapeHeadLeft :: Tape -> String
-tapeHeadLeft = reverse . tLeft
+-- 16x speed-up -- Will think about forking a variant of Data.Text
+-- without all the Unicode stuff.
+unsafeMiddleStr :: T.Text -> Int -> String
+unsafeMiddleStr t@(TI.Text arr off len) i
+  | i >= len = ""
+  | otherwise = unsafeIndex t i : unsafeMiddleStr t (i + 1)
+
+tapeAtHead :: Tape -> Char
+tapeAtHead t = tData t `unsafeIndex` tIndex t
+
+unsafeIndex :: T.Text -> Int -> Char
+unsafeIndex (TI.Text arr off len) i =
+  TC.unsafeChr $ A.unsafeIndex arr i
 
 rewind :: Tape -> Tape
-rewind t = Tape [] $ tapeHeadLeft t ++ tRight t
+rewind t = t { tIndex = 0 }
 
 moveRight :: Tape -> TapeMonad
 moveRight t
   | isAtEnd t = throwE' "Tape already at right."
-  | otherwise = return $ Tape (x:l) xs
-  where l = tLeft t
-        (x:xs) = tRight t
+  | otherwise = return $ t { tIndex = tIndex t + 1 }
 
 moveRightBy :: Int -> Tape -> TapeMonad
-moveRightBy n t =
-  let newLeft = foldl' (flip (:)) (tLeft t) $ take n $ tRight t
-  in
-    return $ Tape newLeft $ drop n $ tRight t
+moveRightBy n t = foldM (\t _ -> moveRight t) t [0..n-1]
 
-moveRightMatching :: String -> Tape-> TapeMonad
+moveRightMatching :: String -> Tape -> TapeMonad
 moveRightMatching x t =
-  foldM (\t _ -> moveRight t) t $ takeWhile (uncurry (==)) $ zip x $ tRight t
+  foldM (\t _ -> moveRight t) t $
+        takeWhile (uncurry (==)) $ zip x (tapeHead t)
 
 moveLeft :: Tape -> TapeMonad
-moveLeft t
-  | isAtStart t = throwE' "Tape already at left."
-  | otherwise = return $ Tape xs (x:r)
-  where r = tRight t
-        (x:xs) = tLeft t
+moveLeft t =
+  if isAtStart t then throwE' "Tape already at left."
+  else return $ t { tIndex = tIndex t - 1 }

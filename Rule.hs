@@ -10,7 +10,6 @@ import Utils
 import RuleSpec
 import Tape
 import Data.AssocList
-import Data.String.Utils
 
 data LRule = LRule (AssocList RuleSpec [String]) deriving (Eq, Show)
 
@@ -27,5 +26,5 @@ addSuccessor :: RuleSpec -> String -> LRule -> LRule
 addSuccessor spec prod rule@(LRule rules) =
   let productions = lookup1 spec rules
   in
-    LRule $ addEntry spec (prod:productions) rules
+    LRule $ addEntry spec (prod : productions) rules
 

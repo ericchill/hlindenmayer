@@ -54,16 +54,17 @@ main = getArgs >>= executeR defaultOpts >>= \opts -> do
   runExceptT
     (showResults opts (input opts)
     `catchE'` \x -> do
-        liftIO $ print ("*** Failed with " ++ x)
+        liftIO $ putStrLn ("*** Failed with " ++ x)
         liftIO exitFailure)
   return ()
 
 derive :: (Turt a) => Mode -> LSystem a -> String -> Int -> ErrorIO String
 derive mode sys start 0 = return start
 derive mode sys start n = do
-  production <- produce (lGrammar sys) start
+  production <- produce (lGrammar sys) start `amendE'` ("derive " ++ show start)
   derive mode sys ((
-    if mode == GrammarOpt then trace ("step " ++ show n ++ ": " ++ show production)
+    if mode == GrammarOpt then
+      trace ("step " ++ show n ++ ": " ++ show production)
     else id) production)
     (n - 1)
 
@@ -73,16 +74,16 @@ growPlant mode opts sys = do
       mapErrorM $ getIntOption "iterate" 1 $ getOptions sys
     else
       return $ iterations opts
-  derive mode sys (lAxiom sys) count
+  derive mode sys (lAxiom sys) count `amendE'` ("glowPlant " ++ show sys)
 
 showResults ::  Main -> String -> ExceptT String IO ()
 showResults opts input = do
   text <- liftIO $ readFile input
-  sys <- mapErrorM $! parseRuleFile text
+  sys <- mapErrorM $ parseRuleFile text
   mode <- liftIO $ mergeModeOpts opts
   plant <- growPlant mode opts sys
   if mode == GrammarOpt then
-    liftIO $ putStrLn ("Final is " ++ plant)
+    liftIO $ putStrLn ("Final is " ++ show plant)
   else
     povLSystem sys plant
 

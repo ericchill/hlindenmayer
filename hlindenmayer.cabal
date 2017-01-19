@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                hlindenmayer
-version:             0.1.0.0
+version:             0.1.1.0
 synopsis:            Lindenmeyer Fractals
 -- description:         
 license:             OtherLicense
@@ -17,34 +17,36 @@ cabal-version:       >=1.10
 
 executable hlindenmayer
   main-is:             Main.hs
-  other-modules:       Grammar,
-                       LSystem,
-                       Math,
-                       Options,
-                       Parse,
-                       PlotTurtle,
-                       POVTurtle,
-                       Rule,
-                       Tape,
-                       Utils,
-                       Metagrammar,
-                       RuleSpec,
-                       Turtle
+  other-modules:       Grammar
+                     , LSystem
+                     , Math
+                     , Options
+                     , Parse
+                     , PlotTurtle
+                     , POVTurtle
+                     , Rule
+                     , Tape
+                     , Utils
+                     , Metagrammar
+                     , RuleSpec
+                     , Turtle
   -- other-extensions:
   -- MissingH for Data.String.Utils
   -- containers for Data.Map.Strict
   -- hxt for Data.AssocList    
-  build-depends:       base >=4.8 && <4.9,
-                       cmdlib >= 0.3.6,
-                       containers >=0.5 && <0.6,
-                       hxt >=9.3 && <9.4,
-                       lens >= 4.13,
-                       linear >= 1.20,
-                       MissingH >=1.4 && <1.5,
-                       mtl >= 2.2.1,
-                       random >= 1.1,
-                       strict >= 0.3.2,
-                       transformers >= 0.4.2
+  build-depends:       base >=4.8 && <4.9
+                     , cmdlib >= 0.3.6
+                     , containers >=0.5 && <0.6
+                     , hxt >=9.3 && <9.4
+                     , lens >= 4.13
+                     , linear >= 1.20
+                     , MissingH >=1.4 && <1.5
+                     , mtl >= 2.2.1
+                     , random >= 1.1
+                     , strict >= 0.3.2
+                     , text >= 1.2.2
+                     , transformers >= 0.4.2
     -- hs-source-dirs:      
   default-language:    Haskell2010
   ghc-options:         -fno-max-relevant-binds -fprof-auto -rtsopts -O
+                       -fno-warn-name-shadowing
