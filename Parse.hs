@@ -1,12 +1,18 @@
 module Parse (
   parseRuleFile,
+  metagrammar,
   module Grammar,
   module LSystem
   )
 where
+import Grammar
 import LSystem
 import Metagrammar
-import Grammar
+import NumEval.Binding
+import NumEval.Syntax
+import NumEval.Translate
+import ParseRule
+import Rule
 import RuleSpec
 import Turtle (TAction, encodeActions, Turt)
 import Utils
@@ -31,6 +37,7 @@ metagrammar toIgnore = Metagrammar {
   isOpenBracket  = isOpenPunctuation,
   isCloseBracket = isClosePunctuation,
   closesBracket  = closes,
+  opensBracket   = opens,
   isFuncArg      = (== '('),
   isBlank        = isSpace,
   isIgnored      = (`elem` toIgnore),
@@ -49,8 +56,8 @@ addLineToSystem :: (Turt a) => LSystem a -> String -> LSystemError a
 addLineToSystem sys [] = return sys
 addLineToSystem sys line
   | "->" `isInfixOf` line = addRule line sys
-  | ':' `elem` line        = addParam line sys
-  | otherwise              = throwE' $ "Don't know what to do with: " ++ line
+  | ':' `elem` line       = addParam line sys
+  | otherwise             = throwE' $ "Don't know what to do with: " ++ line
 
 filterComments :: [String] -> [String]
 filterComments ls =
@@ -79,33 +86,25 @@ addParam line sys
 addRule :: (Turt a) => String -> LSystem a -> LSystemError a
 addRule line sys =
   do
-    (spec, production) <- parseRule (gMeta $ lGrammar sys) line
-    return $ setGrammar sys (addRuleFromSpec spec production $ lGrammar sys)
+    (spec, prod) <- parseRule (gMeta $ lGrammar sys) line line
+    prod' <- translateProduction prod
+    return $ setGrammar sys (addRuleFromSpec spec prod' $ lGrammar sys)
 
-parseRule :: Metagrammar -> String -> ErrorM (RuleSpec, String)
-parseRule meta input =
-  if null specStr then throwE' $ "parseRule input is " ++ input
-  else do
-    spec <- parseRuleSpec meta specStr
-    return (spec, strip prodStr)
-  where (specStr, prodStr) = stripSplit1 "-->" input
+translateProduction :: ParsedProduction -> ErrorM Production
+translateProduction parsed = do
+  factors <- mapM translateFactor (ppFactors parsed)
+  cond <- translateMaybeNumExpr (ppCond parsed) 1.0
+  prob <- translateMaybeNumExpr (ppProb parsed) 1.0
+  return $ Production (Just cond) factors (Just prob)
 
-parseRuleSpec :: Metagrammar -> String -> ErrorM RuleSpec
-parseRuleSpec meta [] = throwE' "Empty RuleSpec string."
-parseRuleSpec meta str
-  | not $ null right = parseRuleSpec2 meta left right
-  | otherwise     = parseRuleSpec2 meta "*" left
-  where
-    (left, right) = stripSplit1 "<" str
+translateFactor :: ParsedProdFactor -> ErrorM ProdFactor
+translateFactor parsed = do
+  exprs <- mapLeft $ mapM translate (ppfArgExprs parsed)
+  return $ ProdFactor (ppfName parsed) exprs
 
-parseRuleSpec2 :: Metagrammar -> String -> String -> ErrorM RuleSpec
-parseRuleSpec2 meta _ [] = error "No RuleSpec after left constraint"
-parseRuleSpec2 meta left str
-  | not $ null right =
-    case center of
-      "" -> throwE' "No center element in RuleSpec."
-      center -> return $ makeRuleSpec meta left center right
-  | otherwise = return $ makeRuleSpec meta left str "*"
-  where
-    (center, right) = stripSplit1 ">" str
-
+translateMaybeNumExpr :: Maybe NumExpr -> Double -> ErrorM Evaluator
+translateMaybeNumExpr expr def =
+  case expr of
+    Just e  -> mapLeft $ translate e
+    Nothing -> return $ Evaluator (\_ -> return def)
+    

@@ -196,7 +196,7 @@ encodeActionsRec s = do
 encodeAction :: (Turt a) => String -> ErrorM (String, TAction a)
 encodeAction [] = return ("", Noop)
 encodeAction s@(x:xs) =
-  case x of
+  case () of
      _ | x == '['  -> encodeBranch xs
        -- Things with length dimension
        | x `elem` "FGfp" -> do

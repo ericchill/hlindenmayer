@@ -2,11 +2,10 @@ module Metagrammar (
   Metagrammar(..),
   mSetIgnore,
   testMeta,
-  lcondiff,
-  rcondiff,
   skipLeft,
   skipRight,
   skipAndCopy,
+  skipAndCopyLeft,
   Tape
     )
 where
@@ -19,6 +18,7 @@ data Metagrammar = Metagrammar {
   isOpenBracket  :: Char -> Bool,
   isCloseBracket :: Char -> Bool,
   closesBracket  :: Char -> Char -> Bool,
+  opensBracket   :: Char -> Char -> Bool,
   isFuncArg      :: Char -> Bool,
   isBlank        :: Char -> Bool,
   isIgnored      :: Char -> Bool,
@@ -45,6 +45,7 @@ testMeta =
     isOpenBracket  = cf,
     isCloseBracket = cf,
     closesBracket  = cf2,
+    opensBracket   = cf2,
     isFuncArg      = cf,
     isBlank        = cf,
     isIgnored      = cf,
@@ -53,45 +54,6 @@ testMeta =
     rsSig          = "test"
     }
 
--- Check left context
-lcondiff :: Metagrammar -> String -> Tape -> ErrorM Bool
-lcondiff _ [] _ = return True
-lcondiff meta s@(x:xs) t =
-  if isAtStart t then return $ isWild meta x
-  else do
-    t' <- moveLeft t
-    let h = tapeAtHead t
-        diffNext = lcondiff meta xs t in
-      case h of
-        _ | isAtStart t'          -> return False
-          | isIgnored meta h      -> diffNext
-          | isOpenBracket meta h  -> diffNext
-          | isCloseBracket meta h ->
-              skipLeft meta t >>= lcondiff meta s
-          | isWild meta x         -> diffNext
-          | x /= h                -> return False
-          | otherwise             -> diffNext
-
--- Check right context
-rcondiff :: Metagrammar -> String -> Tape -> ErrorM Bool
-rcondiff _ [] _ = return True
-rcondiff meta s@(x:xs) t
-  | isAtEnd t = return $ isWild meta x
-  | otherwise = do
-    t' <- moveRight t
-    if isAtEnd t' then
-      return $ isWild meta x
-    else
-      let h = tapeAtHead t'
-          diffNext = rcondiff meta xs t'
-      in case h of
-        _ | isIgnored meta h -> diffNext
-          | isOpenBracket meta x -> do
-              t' <- mapErrorM $ skipRight meta t
-              rcondiff meta s t'
-          | isWild meta x -> diffNext
-          | x /= h -> return False
-          | otherwise -> diffNext
   
 -- Leave head to left of item
 skipLeft :: Metagrammar -> Tape -> TapeMonad
@@ -106,7 +68,7 @@ skipLeftRec meta delimStack@(d:ds) t
   | otherwise = do
       t' <- moveLeft t `amendE'` "skipLeftRec"
       let x = tapeAtHead t in
-        case x of
+        case () of
           _ | closesBracket meta d x -> skipLeftRec meta ds t'
             | isCloseBracket meta x  -> skipLeftRec meta (x:ds) t'
             | otherwise              -> skipLeftRec meta delimStack t'
@@ -125,7 +87,7 @@ skipRightRec meta stack t
   | isAtEnd t = throwE' "skipRight: Missing closing delimiter."
   | otherwise =
       let x = tapeAtHead t
-          newStack = case x of
+          newStack = case () of
             _ | closesBracket meta x (head stack) -> tail stack
               | isOpenBracket meta x              -> x : stack
               | otherwise                         -> stack
@@ -148,11 +110,35 @@ skipAndCopyRec meta stack t
   | isAtEnd t = throwE' "skipAndCopy: Missing closing delimiter."
   | otherwise =
       let x = tapeAtHead t
-          newStack = case x of
+          newStack = case () of
             _ | closesBracket meta x (head stack) -> tail stack
               | isOpenBracket meta x              -> x : stack
               | otherwise                         -> stack
       in do
         t' <- moveRight t `amendE'` "skipAndCopy"
         (rest, t'') <- skipAndCopyRec meta newStack t'
+        return (x : rest, t'')
+
+-- For a string starting with a balanced delimiter, copy up to the right of
+-- the open and return tape position to the left.
+skipAndCopyLeft :: Metagrammar -> Tape -> ErrorM (String, Tape)
+skipAndCopyLeft meta t
+  | isAtStart t  = throwE' "Already at end in skipAndCopyLeft"
+  | otherwise  = do
+      t' <- moveLeft t
+      skipAndCopyLeftRec meta [tapeAtHead t] t'
+
+skipAndCopyLeftRec :: Metagrammar -> String -> Tape -> ErrorM (String, Tape)
+skipAndCopyLeftRec _ [] t = return ([], t)
+skipAndCopyLeftRec meta stack t
+  | isAtStart t = throwE' "skipAndCopy: Missing closing delimiter."
+  | otherwise =
+      let x = tapeAtHead t
+          newStack = case () of
+            _ | opensBracket meta x (head stack) -> tail stack
+              | isCloseBracket meta x            -> x : stack
+              | otherwise                        -> stack
+      in do
+        t' <- moveLeft t `amendE'` "skipAndCopyLeft"
+        (rest, t'') <- skipAndCopyLeftRec meta newStack t'
         return (x : rest, t'')

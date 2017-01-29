@@ -5,13 +5,16 @@ module Tape (
   tShow,
   TapeMonad,
   newTape,
+  distance,
   isAtEnd,
   isAtStart,
   rewind,
   moveRight,
-  moveRightBy,
-  moveRightMatching,
   moveLeft,
+  moveRightBy,
+  moveLeftBy,
+  matchRight,
+  matchLeft,
   tapeHead,
   tapeAtHead
   )
@@ -40,6 +43,9 @@ newTape x = Tape {
     tMax   = length x,
     tData  = T.pack x
   }
+
+distance :: Tape -> Tape -> Int
+distance (Tape i1 _ _) (Tape i2 _ _) = abs (i2 - i1)
 
 isAtStart :: Tape -> Bool
 isAtStart t = tIndex t == 0
@@ -73,15 +79,39 @@ moveRight t
   | isAtEnd t = throwE' "Tape already at right."
   | otherwise = return $ t { tIndex = tIndex t + 1 }
 
+moveLeft :: Tape -> TapeMonad
+moveLeft t =
+  if isAtStart t then throwE' "Tape already at left."
+  else return $ t { tIndex = tIndex t - 1 }
+
 moveRightBy :: Int -> Tape -> TapeMonad
 moveRightBy n t = foldM (\t _ -> moveRight t) t [0..n-1]
+
+moveLeftBy :: Int -> Tape -> TapeMonad
+moveLeftBy n t = foldM (\t _ -> moveLeft t) t [0..n-1]
 
 moveRightMatching :: String -> Tape -> TapeMonad
 moveRightMatching x t =
   foldM (\t _ -> moveRight t) t $
         takeWhile (uncurry (==)) $ zip x (tapeHead t)
 
-moveLeft :: Tape -> TapeMonad
-moveLeft t =
-  if isAtStart t then throwE' "Tape already at left."
-  else return $ t { tIndex = tIndex t - 1 }
+matchRight :: String -> Tape -> ErrorM (Tape, Bool)
+matchRight x t =
+  let len = length x
+  in
+    if x == take len (tapeHead t) then do
+      t' <- moveRightBy len t `amendE'` "matchRight"
+      return (t', True)
+    else
+      return (t, False)
+
+matchLeft :: String -> Tape -> ErrorM (Tape, Bool)
+matchLeft x t =
+  let len = length x
+  in do {
+    t' <- moveLeftBy len t;
+    if x == take len (tapeHead t') then
+      return (t', True)
+    else
+      return (t, False)
+    } `catchE'` (\_ -> return (t, False))

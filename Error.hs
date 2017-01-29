@@ -6,6 +6,7 @@ module Error (
   amendE',
   mapErrorM,
   mapNothing,
+  mapLeft,
   trace,
   module Control.Monad.Except,
   module Control.Monad.Identity
@@ -38,8 +39,14 @@ mapNothing err a =
     Just x  -> return x
     Nothing -> throwE' err
 
+mapLeft :: Either String b -> ErrorM b
+mapLeft a =
+  case a of
+    Right x  -> return x
+    Left err -> throwE' err
+
 trace :: String -> a -> a
 trace msg arg = if traceOn then Trace.trace msg arg else arg
 
 traceOn :: Bool
-traceOn = False
+traceOn = True

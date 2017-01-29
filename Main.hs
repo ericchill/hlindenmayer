@@ -1,8 +1,9 @@
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, DeriveDataTypeable #-}
 module Main where
-import Parse
 import Grammar
 import Options
+import Parse
+import ParseRule
 import POVTurtle
 import Tape
 import Utils
@@ -50,14 +51,20 @@ defaultOpts = Main {
   }
   
 main :: IO ()
-main = getArgs >>= executeR defaultOpts >>= \opts -> do
+{-main = getArgs >>= executeR defaultOpts >>= \opts -> do
   runExceptT
     (showResults opts (input opts)
     `catchE'` \x -> do
         liftIO $ putStrLn ("*** Failed with " ++ x)
         liftIO exitFailure)
   return ()
-
+-}
+main = do
+  args <- getArgs
+  let arg = head args in do
+    parsed <- runExceptT $ mapErrorM $ testParse (metagrammar "") arg arg
+    print parsed
+  
 derive :: (Turt a) => Mode -> LSystem a -> String -> Int -> ErrorIO String
 derive mode sys start 0 = return start
 derive mode sys start n = do
@@ -89,7 +96,7 @@ showResults opts input = do
 
 mergeModeOpts :: Main -> IO Mode
 mergeModeOpts opts =
-  case opts of
+  case () of
     _ | fractal opts && grammar opts -> do
           putStrLn "\"--fractal\" and \"--grammar\" can not both be selected."
           return Exit

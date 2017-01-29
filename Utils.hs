@@ -8,10 +8,9 @@ module Utils (
   balancedSplit,
   isOpenPunctuation,
   isClosePunctuation,
+  opens,
   closes,
-  matchLongestPrefix,
   module Error,
-  module Control.Applicative,
   )
   where
 import Error
@@ -44,12 +43,20 @@ lNot = liftA not
 
 
 -- Return a random element from a list.
-randomElement :: [String] -> ErrorIO String
-randomElement a =
-  if length a == 1 then return $ head a  -- conserve entropy
+randomElement :: [(Double, String)] -> ErrorIO String
+randomElement choices =
+  if length choices == 1 then return $ snd $ head choices  -- conserve entropy
   else do
-    i <- liftIO $ getStdRandom (randomR(0, length a - 1))
-    return $ a !! i
+    x <- liftIO (getStdRandom (randomR (0.0, 1.0)) :: IO Double)
+    let (_, s) = foldl (\(x', s') (p, s) ->
+                       case s' of
+                         Just s  -> (x', s')
+                         Nothing ->
+                           if x' - p <= 0 then (x' - p, Just s)
+                           else (x' - p, Nothing)) (0.0, Nothing) choices
+      in case s of
+        Just s -> return s
+        Nothing -> throwE' "Nothing in randomElement."
 
 
 -- Read a number. If there is a decimal point without a leading digit,
@@ -89,7 +96,7 @@ balancedSplitRec :: String -> String -> ErrorM (String, String)
 balancedSplitRec [] s = return (empty, s)
 balancedSplitRec _ [] = throwE' "Missing close delimiter in balancedSplitRec."
 balancedSplitRec stack (x:xs) =
-  let newStack = case x of
+  let newStack = case () of
         _ | x `closes` head stack -> tail stack
           | isOpenPunctuation x   -> x : stack
           | otherwise             -> stack
@@ -103,16 +110,16 @@ isOpenPunctuation c = c == '(' || c == '[' || c == '{'
 isClosePunctuation :: Char -> Bool
 isClosePunctuation c = c == ')' || c == ']' || c == '}'
 
+opens :: Char -> Char -> Bool
+opens open close
+  | open == '(' = close == ')'
+  | open == '[' = close == ']'
+  | open == '{' = close == '}'
+  | otherwise = False
+
 closes :: Char -> Char -> Bool
 closes close open
   | open == '(' = close == ')'
   | open == '[' = close == ']'
   | open == '{' = close == '}'
   | otherwise = False
-
-
-matchLongestPrefix :: String -> [String] -> Maybe String
-matchLongestPrefix s prefixes =
-  case filter (`isPrefixOf` s) prefixes of
-    [] -> Nothing
-    x  -> Just $ head x
