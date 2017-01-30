@@ -7,15 +7,16 @@ module Rule (
   , evalProduction
   , addSuccessor
 ) where
+import Error
 import Math
 import NumEval.Binding
 import RuleSpec
 import Tape
 import Utils
-import Data.AssocList
-import Data.List (intercalate)
+import Data.AssocList (AssocList, addEntry, lookup1)
+import Data.List (intercalate, sortBy)
 
-data LRule = LRule (AssocList RuleSpec [Production])
+data LRule = LRule (AssocList RuleSpec [Production]) deriving (Show)
 
 data Production = Production {
     pCond        :: Maybe Evaluator
@@ -28,20 +29,28 @@ data ProdFactor = ProdFactor {
   , pfFuncs :: [Evaluator]
   } 
 
+instance Show Production where
+  show p = "Production " ++ show (pProduction p)
+
+instance Show ProdFactor where
+  show = pfName
+
 makeRule :: RuleSpec -> Production -> LRule
 makeRule spec production = LRule [(spec, [production])]
 
 applyRule :: LRule -> Tape -> ErrorM [Production]
 applyRule (LRule rules) t = do
   matches <- filterM (\(spec, _) -> matchSpec spec t) rules
-  if null matches then return []
+  if Error.trace ("\napply matches = " ++ show matches) $ null matches then
+    return []
     else return $ (snd . head) matches
 
 addSuccessor :: RuleSpec -> Production -> LRule -> LRule
 addSuccessor spec prod rule@(LRule rules) =
   let productions = lookup1 spec rules
+      newList = addEntry spec (prod : productions) rules
   in
-    LRule $ addEntry spec (prod : productions) rules
+    LRule $ sortBy (\(a,_) (b,_) -> wildness a `compare` wildness b) newList
 
 evalProduction :: Bindings -> Production -> EvalError (Double, String)
 evalProduction bindings (Production _ terms prob) = do

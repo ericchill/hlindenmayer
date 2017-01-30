@@ -15,6 +15,7 @@ import NumEval.Parser
 import NumEval.Syntax
 import Data.Char (isSpace)
 import qualified Data.Map.Strict as Map
+import Data.String.Utils (strip)
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Char
 import Text.ParserCombinators.Parsec.Language
@@ -79,6 +80,7 @@ parseRule meta filename line =
     Right prod -> return prod
 
 rule meta = do
+  whitespace
   spec <- ruleSpec meta <?> "ruleSpec"
   cond <- ruleCondition-- <?> "ruleCondition"
   prod <- prodTerm cond <?> "prodTerm"
@@ -92,60 +94,61 @@ ruleSpec meta = do
 ruleCondition = condExpr <|> nullCond
 
 condExpr = try $ do
-  cond <- between (symbol ",") (symbol "->") (NumEval.Parser.expr <?> "expr")
+  cond <- between (symbol ",") (symbol "->") NumEval.Parser.expr
   return $ Just cond
 
 nullCond = do
   symbol "->"
   return Nothing
   
-rule0Spec = try $ do
+rule0Spec = do
   term <- specTerm
-  return (constWild, term, constWild)
+  return (SpecWild, term, SpecWild)
 
 rule1LSpec = try $ do
-  left <- specTermOrWild <?> "r1ls"
-  reservedOp "<"
-  pred <- specTerm  <?> "r1ls (2)"
-  return (left, pred, constWild)
+  left <- specTermOrWild
+  symbol "<"
+  pred <- specTerm
+  return (left, pred, SpecWild)
 
 rule1RSpec = try $ do
-  pred <- specTerm <?> "r1rs"
-  reservedOp ">"
-  right <- specTermOrWild  <?> "r1rs (2)"
-  return (constWild, pred, right)
+  pred <- specTerm
+  symbol ">"
+  right <- specTermOrWild
+  return (SpecWild, pred, right)
 
 rule2Spec = try $ do
   (left, pred, _) <- rule1LSpec
-  reservedOp ">"
-  right <- specTermOrWild  <?> "r2ls"
+  symbol ">"
+  right <- specTermOrWild
   return (left, pred, right)
-
-constWild :: SpecTerm
-constWild = SpecWild
 
 specTermOrWild = wild <|> specTerm
 
 wild = try $ do
-  reservedOp "*"
-  return constWild
+  symbol "*"
+  return SpecWild
 
 specTerm = do
   factors <- many specFactor
-  return $ SpecTerm factors
+  let f' = map (\f -> f { sfName = strip (sfName f) }) factors in
+    return $ SpecTerm $ filter (not . null . sfName) f'
 
 specFactor = do
-  name <- turtleOp <?> "turtleOp"
-  params <- option [] $ try (parens (commaSep1 identifier) <?> "why?")
+  name <- turtleOp
+  params <- option [] $ try $ parens (commaSep1 identifier)
   return $ SpecFactor name params
 
 prodTerm cond = do
-  factors <- many (prodFactor <?> "prodFactor")
+  factors <- many prodFactor
   prob <- optionMaybe prodProbability
-  return $ ParsedProduction cond factors prob
+  let f' = map (\f -> f { ppfName = strip (ppfName f) }) factors
+      f'' = filter (not . null . ppfName) f'
+    in
+    return $ ParsedProduction cond f'' prob
 
 prodProbability = try $ do
-  reservedOp ":"
+  symbol ":"
   NumEval.Parser.expr
 
 prodFactor = do
@@ -153,15 +156,14 @@ prodFactor = do
   exprs <- option [] $ parens $ commaSep1 NumEval.Parser.expr
   return $ ParsedProdFactor name exprs
 
-turtleOp = try (
-  extendedOp <|> loneMinus <|> almostAnythingElse)
+turtleOp = try (extendedOp <|> loneMinus <|> almostAnythingElse)
 
 extendedOp = try $ do
-  reservedOp "@"
+  symbol "@"
   identifier
 
 loneMinus = try $ do
-  reservedOp "-"
+  symbol "-"
   notFollowedBy $ reservedOp ">"
   return "-"
 

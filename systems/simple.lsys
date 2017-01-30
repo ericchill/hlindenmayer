@@ -2,14 +2,19 @@
 A simple example
 */
 axiom: F
-F --> FAAF
-F < A --> B
-A > F --> Q
+F -> FAAF
+F < A -> B
+A > F -> Q
+/*
+F ---> FAAF
+FAAF ---> FAAFBQFAAF
+FAAFBQFAAF ---> FAAFBQFAAFBQFAAFBQFAAF
+*/
 /*
 more comments
 */
-//A --> Q
-//-A<F --> AA
+//A -> Q
+//-A<F -> AA
 /*
 F
 FAAF

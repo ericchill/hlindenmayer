@@ -51,20 +51,20 @@ defaultOpts = Main {
   }
   
 main :: IO ()
-{-main = getArgs >>= executeR defaultOpts >>= \opts -> do
+main = getArgs >>= executeR defaultOpts >>= \opts -> do
   runExceptT
     (showResults opts (input opts)
     `catchE'` \x -> do
         liftIO $ putStrLn ("*** Failed with " ++ x)
         liftIO exitFailure)
   return ()
--}
+{-
 main = do
   args <- getArgs
   let arg = head args in do
     parsed <- runExceptT $ mapErrorM $ testParse (metagrammar "") arg arg
     print parsed
-  
+-}
 derive :: (Turt a) => Mode -> LSystem a -> String -> Int -> ErrorIO String
 derive mode sys start 0 = return start
 derive mode sys start n = do

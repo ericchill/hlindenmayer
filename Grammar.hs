@@ -8,13 +8,14 @@ module Grammar (
   module Metagrammar
   )
 where
-import Utils
+import Error
 import Math
 import Metagrammar
 import NumEval.Binding
 import Rule
 import RuleSpec
 import Tape
+import Utils
 import Control.Arrow
 import Data.Foldable (toList)
 import Data.Function (on)

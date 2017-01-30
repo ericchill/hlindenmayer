@@ -5,12 +5,14 @@ module RuleSpec (
   , SpecMatch(..)
   , TermMatch(..)
   , FactorMatch(..)
+  , wildness
   , specTermLength
   , matchSpec
   , matchLongestTerm
   , Metagrammar
   , Tape
   ) where
+import Error
 import Metagrammar
 import Tape
 import Utils
@@ -29,6 +31,12 @@ data RuleSpec = RuleSpec {
   , rsRight :: SpecTerm
   } deriving (Eq, Show)
 
+
+wildness :: RuleSpec -> Int
+wildness a =
+  let wilds = map (SpecWild ==) [rsLeft a, rsRight a] in
+    foldl (\acc w -> if w then acc + 1 else acc) 0 wilds
+    
 data SpecTerm = SpecWild | SpecTerm [SpecFactor] deriving (Eq, Show)
 
 -- Need this for rule lookup on predecessor.
@@ -60,7 +68,7 @@ data SpecMatch = SpecMatch {
 data TermMatch = TermMatch {
     tmTerm    :: SpecTerm
   , tmFactors :: [FactorMatch]
-  }
+  } deriving (Show)
 
 data FactorMatch = FactorMatch {
     fmFactor :: SpecFactor
@@ -69,50 +77,41 @@ data FactorMatch = FactorMatch {
   , fmNext   :: Tape        -- Beginning of matched item
   }
 
-endMatch :: Tape -> FactorMatch
-endMatch = FactorMatch nullFactor 0 []
+instance Show FactorMatch where
+  show f = "FactorMatch " ++ show (fmFactor f) ++ " " ++ show (fmArgs f)
 
 matchSpec :: RuleSpec -> Tape -> ErrorM Bool
 matchSpec spec@(RuleSpec meta l (SpecTerm p) r) t = do
   prefixMatches <- isPrefixOfIgnoring meta p t `amendE'` "prefixMatches"
-  case prefixMatches of
-    Just n -> do
+  if null prefixMatches then return False
+    else do
       leftMatch <- lcondiff meta l t `amendE'` "matchSpec"
       case leftMatch of
         Nothing -> return False
         Just lm -> do
-          rightMatch <- rcondiff meta l t `amendE'` "matchSpec"
+          rightMatch <- rcondiff meta r t `amendE'` "matchSpec"
           case rightMatch of
             Nothing -> return False
             Just rm -> return True
-{-
-      (lcondiff meta l t &&&& rcondiff meta r t)
-                      `amendE'` ("matchSpec " ++ show l ++ " < " ++
-                                 show p ++
-                                 " > " ++ show r ++
-                                 ", t = " ++ tShow t)
--}
-    _ -> return False
 
 -- Check left context
 lcondiff :: Metagrammar -> SpecTerm -> Tape -> ErrorM (Maybe TermMatch)
-lcondiff _ SpecWild t = return $ Just $ TermMatch SpecWild []
+lcondiff _ SpecWild _ = return $ Just $ TermMatch SpecWild []
 lcondiff meta spec@(SpecTerm factors) t = do
-  diff <- lcondiffRec meta factors t
-  case diff of
-    Just terms -> return $ Just $ TermMatch spec terms
-    Nothing    -> return Nothing
+  matched <- lcondiffRec meta factors t
+  if length factors == length matched then
+    return $ Just $ TermMatch spec matched
+    else return Nothing
 
 -- Check left context
-lcondiffRec :: Metagrammar -> [SpecFactor] -> Tape ->
-  ErrorM (Maybe [FactorMatch])
-lcondiffRec _ [] _ = return $ Just []
+lcondiffRec :: Metagrammar -> [SpecFactor] -> Tape -> ErrorM [FactorMatch]
+lcondiffRec _ [] _ = return []
 lcondiffRec meta s@(x:xs) t =
   let h = tapeAtHead t
       name = sfName x
       diffNext = moveLeft t >>= lcondiffRec meta xs
     in case () of
-      _ | isAtStart t           -> return Nothing
+      _ | isAtStart t           -> return []
         | isSpace h             -> diffNext
         | isIgnored meta h      -> diffNext
         | isOpenBracket meta h  -> diffNext
@@ -122,43 +121,39 @@ lcondiffRec meta s@(x:xs) t =
             args <- gatherArgs argStr
             if length args == length (sfParams x) then do
               t'' <- moveLeftBy (length name) t'
-              if name `isPrefixOf` tapeHead t'' then do
-                rest <- lcondiffRec meta xs t''
-                case rest of
-                  Just fms ->
-                    let fm = FactorMatch x (distance t'' t) args t'' in
-                      return $ Just (fm : fms)
-                else return Nothing
-            else return Nothing
+              if name `isPrefixOf` tapeHead t'' then
+                let fm = FactorMatch x (distance t'' t) args t'' in do
+                  rest <- lcondiffRec meta xs t''
+                  return (fm : rest)
+              else return []
+            else return []
         | otherwise -> do
-          t' <- moveLeftBy (length name) t
-          if name `isPrefixOf` tapeHead t' then do
-            rest <- lcondiffRec meta xs t'
-            case rest of
-              Just fms ->
-                let fm = FactorMatch x (distance t' t) [] t' in
-                  return $ Just (fm : fms)
-          else return Nothing
+            t' <- moveLeftBy (length name) t
+            if name `isPrefixOf` tapeHead t' then do
+              rest <- lcondiffRec meta xs t'
+              let fm = FactorMatch x (distance t' t) [] t' in
+                return (fm : rest)
+            else return []
 
 -- Check left context
 rcondiff :: Metagrammar -> SpecTerm -> Tape -> ErrorM (Maybe TermMatch)
 rcondiff _ SpecWild _ = return $ Just $ TermMatch SpecWild []
 rcondiff meta spec@(SpecTerm factors) t = do
-  diff <- rcondiffRec meta factors t
-  case diff of
-    Just terms -> return $ Just $ TermMatch spec terms
-    Nothing    -> return Nothing
+  t' <- moveRight t
+  matched <- rcondiffRec meta factors t'
+  if length factors == length matched then
+    return $ Just $ TermMatch spec matched
+    else return Nothing
 
 -- Check right context
-rcondiffRec :: Metagrammar -> [SpecFactor] -> Tape ->
-  ErrorM (Maybe [FactorMatch])
-rcondiffRec _ [] _ = return $ Just []
+rcondiffRec :: Metagrammar -> [SpecFactor] -> Tape -> ErrorM [FactorMatch]
+rcondiffRec _ [] _ = return []
 rcondiffRec meta s@(x:xs) t =
   let h = tapeAtHead t
       name = sfName x
       diffNext = moveRight t >>= rcondiffRec meta xs
     in case () of
-      _ | isAtEnd t            -> return Nothing
+      _ | isAtEnd t            -> return []
         | isSpace h            -> diffNext
         | isIgnored meta h     -> diffNext
         | isOpenBracket meta h -> skipRight meta t >>= rcondiffRec meta s
@@ -167,50 +162,40 @@ rcondiffRec meta s@(x:xs) t =
           if '(' == tapeAtHead t' then do
             (argStr, t'') <- skipAndCopy meta t'
             args <- gatherArgs argStr
-            if length args == length (sfParams x) then do
-              rest <- rcondiffRec meta xs t''
-              case rest of
-                Just fms ->
-                  let fm = FactorMatch x (distance t'' t) args t'' in
-                    return $ Just (fm : fms)
-            else return Nothing
-          else do
-            rest <- rcondiffRec meta xs t'
-            case rest of
-              Just fms ->
-                let fm = FactorMatch x (length name) [] t in
-                  return $ Just (fm : fms)
--- [maybe, nothing, 
+            if length args == length (sfParams x) then
+              let fm = FactorMatch x (distance t'' t) args t'' in do
+                rest <- rcondiffRec meta xs t''
+                return (fm : rest)
+            else return []
+          else 
+            let fm = FactorMatch x (length name) [] t in do
+              rest <- rcondiffRec meta xs t'
+              return (fm : rest)
+        | otherwise -> return []
+
 matchLongestTerm :: Metagrammar -> [SpecTerm] -> Tape ->
   ErrorM (Maybe TermMatch)
 matchLongestTerm _ [] _ = return Nothing
 matchLongestTerm meta (s@(SpecTerm factors):px) t = do
   isPfx <- isPrefixOfIgnoring meta factors t
-  case isPfx of
-    Just match -> return $ Just $ TermMatch s match
-    Nothing    -> matchLongestTerm meta px t
+  if null isPfx then matchLongestTerm meta px t
+    else return $ Just $ TermMatch s isPfx
 
 isPrefixOfIgnoring :: Metagrammar -> [SpecFactor] -> Tape ->
-  ErrorM (Maybe [FactorMatch])
-isPrefixOfIgnoring _ [] _ = return $ Just []
+  ErrorM [FactorMatch]
+isPrefixOfIgnoring _ [] _ = return []
 isPrefixOfIgnoring meta term@(f:fs) t
-  | isAtEnd t = return Nothing
+  | isAtEnd t = return []
   | isIgnored meta (tapeAtHead t) = do
       t' <- moveRight t `amendE'` "isPrefixOfIgnoring"
-      matchRest <- isPrefixOfIgnoring meta term t'
-      case matchRest of
-        Just fms -> return $ Just $ FactorMatch nullFactor 1 [] t : fms
-        Nothing  -> return Nothing
+      isPrefixOfIgnoring meta term t'
   | otherwise = do
     match <- matchFactor meta f t
     case match of
       Just fm  -> do
         rest <- isPrefixOfIgnoring meta fs (fmNext fm)
-        case rest of
-          Just fms ->
-            return $ Just (fm : fms)
-          _ -> return Nothing
-      _ -> return Nothing
+        return (fm : rest)
+      _ -> return []
 
 matchFactor :: Metagrammar -> SpecFactor -> Tape -> ErrorM (Maybe FactorMatch)
 matchFactor meta fact@(SpecFactor name params) t
