@@ -8,8 +8,7 @@ where
 import Grammar
 import LSystem
 import Metagrammar
-import NumEval.Binding
-import NumEval.Syntax
+import NumEval
 import NumEval.Translate
 import ParseRule
 import Rule

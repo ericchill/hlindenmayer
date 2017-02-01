@@ -12,7 +12,7 @@ module Rule (
 ) where
 import Error
 import Math
-import NumEval.Binding
+import NumEval
 import RuleSpec
 import Tape
 import Utils

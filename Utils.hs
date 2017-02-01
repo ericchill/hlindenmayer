@@ -49,11 +49,11 @@ randomElement choices =
   else do
     x <- liftIO (getStdRandom (randomR (0.0, 1.0)) :: IO Double)
     let (_, s) = foldl (\(x', s') (p, s) ->
-                       case s' of
-                         Just s  -> (x', s')
-                         Nothing ->
-                           if x' - p <= 0 then (x' - p, Just s)
-                           else (x' - p, Nothing)) (0.0, Nothing) choices
+                          if x' <= 0 then (x', s')
+                          else 
+                           let x'' = x' - p in
+                             if x'' <= 0 then (x'', Just s)
+                             else (x'', Nothing)) (x, Nothing) choices
       in case s of
         Just s -> return s
         Nothing -> throwE' "Nothing in randomElement."

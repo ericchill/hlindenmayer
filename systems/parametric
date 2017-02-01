@@ -1,2 +1,5 @@
 axiom: A(0)
-A(x) -> A(x+1)
+A(x), x != 2 -> A(x+1)
+A(x), x == 2 -> A(0)B : 3/4
+A(x), x == 2 -> A(0)C : 1/4
+// How to make constants on LHS take priority over variables?

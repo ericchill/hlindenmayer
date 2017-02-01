@@ -172,7 +172,7 @@ skipAndCopy t
 skipAndCopyRec :: String -> Tape -> ErrorM (String, Tape)
 skipAndCopyRec [] t = return ([], t)
 skipAndCopyRec stack t
-  | isAtEnd t = throwE' "skipAndCopy: Missing closing delimiter."
+  | isAtEnd t = throwE' $ "skipAndCopy: Missing closing delimiter. stack = " ++ show stack
   | otherwise =
       let x = tapeAtHead t
           newStack = case () of
@@ -194,7 +194,7 @@ skipAndCopyLeft t
 skipAndCopyLeftRec :: String -> Tape -> ErrorM (String, Tape)
 skipAndCopyLeftRec [] t = return ([], t)
 skipAndCopyLeftRec stack t
-  | isAtStart t = throwE' "skipAndCopy: Missing closing delimiter."
+  | isAtStart t = throwE' "skipAndCopyLeft: Missing closing delimiter."
   | otherwise =
       let x = tapeAtHead t
           newStack = case () of

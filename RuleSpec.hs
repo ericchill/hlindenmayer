@@ -219,7 +219,7 @@ matchFactor meta fact@(SpecFactor name params) t
       return $ Just $ FactorMatch fact (length name) [] afterName
     else if tapeAtHead afterName /= '(' then return Nothing
     else do
-      (argStr, t') <- skipAndCopy t `amendE'` "matchFactor"
+      (argStr, t') <- skipAndCopy afterName `amendE'` "matchFactor"
       args <- gatherArgs argStr
       let d = distance t t' in
         if length args == length params then

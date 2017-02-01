@@ -3,10 +3,12 @@ module NumEval (
   , runable
   , parseExpr
   , module NumEval.Binding
+  , module NumEval.Syntax
   ) where
 import NumEval.Binding
 import NumEval.Parser
 import NumEval.Primitive
+import NumEval.Syntax
 import NumEval.Translate
 import qualified Data.Map.Strict as Map
 

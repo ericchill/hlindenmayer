@@ -12,7 +12,6 @@ import Rule
 import RuleSpec
 import NumEval
 import NumEval.Parser
-import NumEval.Syntax
 import Data.Char (isSpace)
 import qualified Data.Map.Strict as Map
 import Data.String.Utils (strip)
