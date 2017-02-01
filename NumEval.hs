@@ -2,7 +2,7 @@ module NumEval (
     eval
   , runable
   , parseExpr
-  , Evaluator
+  , module NumEval.Binding
   ) where
 import NumEval.Binding
 import NumEval.Parser

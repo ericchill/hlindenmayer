@@ -1,22 +1,22 @@
 module Grammar (
-  Grammar(..),
-  newGrammar,
-  gSetIgnore,
-  addRuleFromSpec,
-  produceOne,
-  produce,
-  module Metagrammar
+  Grammar(..)
+  , newGrammar
+  , gSetIgnore
+  , addRuleFromSpec
+  , produceOne
+  , produce
   )
 where
 import Error
 import Math
 import Metagrammar
-import NumEval.Binding
+import NumEval
 import Rule
 import RuleSpec
 import Tape
 import Utils
 import Control.Arrow
+import Data.Char (isSpace)
 import Data.Foldable (toList)
 import Data.Function (on)
 import Data.List (sortBy, intercalate)
@@ -52,16 +52,16 @@ produceRec g t
 produceOne :: Grammar -> Tape -> GramError
 produceOne g t
   | isAtEnd t      = return (t, [])
-  | isBreak meta x = produceBreak g t
-  | isBlank meta x = justCopy meta t
+  | isBreak meta x = produceBreak t
+  | isSpace x      = justCopy t
   | otherwise = do
       match <- lookupRule g t
       case match of
         Just (m, rule) -> do
-          prods <- applyRule rule t
-          if Prelude.null prods then justCopy meta t
-          else doProduction meta m prods t
-        Nothing -> justCopy meta t
+          prods <- applyRule m rule t
+          if Prelude.null prods then justCopy t
+          else doProduction meta (head prods) t
+        Nothing -> justCopy t
   where meta = gMeta g
         x = tapeAtHead t
 
@@ -73,38 +73,25 @@ lookupRule (Grammar meta rules keys) t = do
       return $ Just (m, fromJust $ Map.lookup spec rules)
     _ -> return Nothing
 
-doProduction :: Metagrammar -> TermMatch -> [Production] -> Tape -> GramError
-doProduction meta (TermMatch spec matched) prods t = do
-  t' <- foldM (\t fm -> moveRightBy (fmLength fm) t) t matched
-  let paramNames =
-        foldl (\names fm -> names ++ sfParams (fmFactor fm)) [] matched
-      argVals = foldl (\vals fm -> vals ++ fmArgs fm) [] matched
-      bindings = foldl (\binds (k, v) ->
-                   bindScalar k (Evaluator (\_ -> return v)) binds) Map.empty $
-        zip paramNames argVals
-    in do
-      -- filter productions by condition
-      metCond <- filterM (\p ->
-                   case pCond p of
-                     Just p -> do
-                       x <- mapLeft $ runEvaluator p bindings
-                       return (x /= 0)
-                     Nothing -> return True) prods
-      if null metCond then justCopy meta t
+doProduction :: Metagrammar -> RuleApplication -> Tape -> GramError
+doProduction meta appl t =
+  let matchedLen = termMatchLength $ cmPred $ raContext appl
+      bindings = addContextBindings (raContext appl) defaultBindings
+  in do
+      t' <- moveRightBy matchedLen t
+      metCond <- filterM (testCondition bindings) (raProds appl)
+      if null metCond then justCopy t
       else do
-        probs <- mapM (\p ->
-                       case pProbability p of
-                         Just p -> mapErrorM $ mapLeft $ runEvaluator p bindings
-                         Nothing -> return 1.0) metCond
+        probs <- mapM (evalProbability bindings) metCond
         prodStrs <- mapM (renderProduction bindings) metCond
-        -- evaluate productions
         return (t', zip probs prodStrs)
 
 renderProduction :: Bindings -> Production -> ErrorM String
 renderProduction b p =
   foldM (\acc p -> do
             facStr <- renderFactor b p
-            return $ acc ++ facStr) "" (pProduction p)
+            return $ acc ++ facStr)
+  "" (pProduction p)
 
 renderFactor :: Bindings -> ProdFactor -> ErrorM String
 renderFactor b f = do
@@ -115,23 +102,23 @@ renderFactor b f = do
     if null argVals then return $ pfName f
     else return $ pfName f ++ "(" ++ allArgs ++ ")"
 
-produceBreak :: Grammar -> Tape -> GramError
-produceBreak g t = do
-  t' <- skipRight (gMeta g) t `amendE'` "produceBreak"
+produceBreak :: Tape -> GramError
+produceBreak t = do
+  t' <- skipRight t `amendE'` "produceBreak"
   moveRight t' `amendE'` "produceBreak"
   return (t', [])
 
-justCopy :: Metagrammar -> Tape -> GramError
-justCopy meta t = do
+justCopy :: Tape -> GramError
+justCopy t = do
   t' <- moveRight t `amendE'` "justCopy"
-  (arg, t'') <- copyArgument meta t'
+  (arg, t'') <- copyArgument t'
   return (t'', [(1, tapeAtHead t : arg)])
 
-copyArgument :: Metagrammar -> Tape -> ErrorM (String, Tape)
-copyArgument meta t
-  | isAtEnd t        = return ([], t)
-  | isFuncArg meta x = do
-      (rest, t') <- skipAndCopy meta t `amendE'` "copyArgument"
+copyArgument :: Tape -> ErrorM (String, Tape)
+copyArgument t
+  | isAtEnd t = return ([], t)
+  | x == '('  = do
+      (rest, t') <- skipAndCopy t `amendE'` "copyArgument"
       return (x : rest, t')
   | otherwise = return ([], t)
   where x = tapeAtHead t
@@ -141,13 +128,13 @@ gSetIgnore x g = g { gMeta = mSetIgnore x $ gMeta g }
 
 addRuleFromSpec :: RuleSpec -> Production -> Grammar -> Grammar
 addRuleFromSpec spec prod g =
-  let pred = rsPred spec
-      rules = gRules g
+  let pred     = rsPred spec
+      rules    = gRules g
       newRules =
         case Map.lookup pred rules of
           Nothing    -> Map.insert pred (makeRule spec prod) rules
           Just aRule -> Map.insert pred (addSuccessor spec prod aRule) rules
   in
-    g { gRules = newRules,
+    g { gRules            = newRules,
         gLengthSortedKeys = sortBy (compare `on` specTermLength) $
                             Map.keys newRules }

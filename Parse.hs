@@ -34,12 +34,6 @@ import qualified Data.Map.Strict as Map
 
 metagrammar :: String -> Metagrammar
 metagrammar toIgnore = Metagrammar {
-  isOpenBracket  = isOpenPunctuation,
-  isCloseBracket = isClosePunctuation,
-  closesBracket  = closes,
-  opensBracket   = opens,
-  isFuncArg      = (== '('),
-  isBlank        = isSpace,
   isIgnored      = (`elem` toIgnore),
   isWild         = (== '*'),
   isBreak        = (== '%'),

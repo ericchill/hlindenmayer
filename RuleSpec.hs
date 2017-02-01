@@ -2,12 +2,14 @@ module RuleSpec (
     RuleSpec(..)
   , SpecTerm(..)
   , SpecFactor(..)
-  , SpecMatch(..)
+  , ContextMatch(..)
   , TermMatch(..)
   , FactorMatch(..)
   , wildness
+  , termMatchLength
   , specTermLength
-  , matchSpec
+  , addContextBindings
+  , matchContext
   , matchLongestTerm
   , Metagrammar
   , Tape
@@ -17,6 +19,7 @@ import Metagrammar
 import Tape
 import Utils
 import NumEval
+import Control.Monad (join)
 import Data.Char
 import Data.List (isPrefixOf)
 import Text.ParserCombinators.Parsec
@@ -59,10 +62,10 @@ data SpecFactor = SpecFactor {
 nullFactor :: SpecFactor
 nullFactor = SpecFactor "" []
 
-data SpecMatch = SpecMatch {
-    tmLeft  :: TermMatch
-  , tmPred  :: TermMatch
-  , tmRight :: TermMatch
+data ContextMatch = ContextMatch {
+    cmLeft  :: TermMatch
+  , cmPred  :: TermMatch
+  , cmRight :: TermMatch
   }
 
 data TermMatch = TermMatch {
@@ -74,25 +77,36 @@ data FactorMatch = FactorMatch {
     fmFactor :: SpecFactor
   , fmLength :: Int         -- Only for predecessor term
   , fmArgs   :: [Double]    -- Parsed numerical arguments
-  , fmNext   :: Tape        -- Beginning of matched item
+  , fmNext   :: Tape        -- Follows matched item
   }
 
 instance Show FactorMatch where
   show f = "FactorMatch " ++ show (fmFactor f) ++ " " ++ show (fmArgs f)
 
-matchSpec :: RuleSpec -> Tape -> ErrorM Bool
-matchSpec spec@(RuleSpec meta l (SpecTerm p) r) t = do
-  prefixMatches <- isPrefixOfIgnoring meta p t `amendE'` "prefixMatches"
-  if null prefixMatches then return False
-    else do
-      leftMatch <- lcondiff meta l t `amendE'` "matchSpec"
-      case leftMatch of
-        Nothing -> return False
-        Just lm -> do
-          rightMatch <- rcondiff meta r t `amendE'` "matchSpec"
-          case rightMatch of
-            Nothing -> return False
-            Just rm -> return True
+termMatchLength :: TermMatch -> Int
+termMatchLength (TermMatch _ factors) = sum $ map fmLength factors
+
+addContextBindings :: ContextMatch -> Bindings -> Bindings
+addContextBindings ctx bindings =
+  foldl (\b (k, v) ->
+           bindScalar k (Evaluator (\_ -> return v)) b) bindings $
+  join $ join $
+  map ((map (\fm -> zip (sfParams $ fmFactor fm ) (fmArgs fm)) . tmFactors)
+       . (\f -> f ctx))
+  [cmLeft, cmPred, cmRight]
+  
+--  fold join map(map(zip)) map 
+
+matchContext :: TermMatch -> RuleSpec -> Tape -> ErrorM (Maybe ContextMatch)
+matchContext pred spec@(RuleSpec meta l (SpecTerm p) r) t = do
+  leftMatch <- lcondiff meta l t `amendE'` "matchSpec"
+  case leftMatch of
+    Nothing -> return Nothing
+    Just lm -> do
+      rightMatch <- rcondiff meta r t `amendE'` "matchSpec"
+      case rightMatch of
+        Nothing -> return Nothing
+        Just rm -> return $ Just $ ContextMatch lm pred rm
 
 -- Check left context
 lcondiff :: Metagrammar -> SpecTerm -> Tape -> ErrorM (Maybe TermMatch)
@@ -111,13 +125,12 @@ lcondiffRec meta s@(x:xs) t =
       name = sfName x
       diffNext = moveLeft t >>= lcondiffRec meta xs
     in case () of
-      _ | isAtStart t           -> return []
-        | isSpace h             -> diffNext
-        | isIgnored meta h      -> diffNext
-        | isOpenBracket meta h  -> diffNext
-        | isCloseBracket meta h -> skipLeft meta t >>= lcondiffRec meta s
+      _ | isAtStart t          -> return []
+        | isSpace h            -> diffNext
+        | isIgnored meta h     -> diffNext
+        | isOpenPunctuation h  -> diffNext
         | h == ')' -> do
-            (argStr, t') <- skipAndCopyLeft meta t
+            (argStr, t') <- skipAndCopyLeft t
             args <- gatherArgs argStr
             if length args == length (sfParams x) then do
               t'' <- moveLeftBy (length name) t'
@@ -127,6 +140,7 @@ lcondiffRec meta s@(x:xs) t =
                   return (fm : rest)
               else return []
             else return []
+        | isClosePunctuation h -> skipLeft t >>= lcondiffRec meta s
         | otherwise -> do
             t' <- moveLeftBy (length name) t
             if name `isPrefixOf` tapeHead t' then do
@@ -153,14 +167,14 @@ rcondiffRec meta s@(x:xs) t =
       name = sfName x
       diffNext = moveRight t >>= rcondiffRec meta xs
     in case () of
-      _ | isAtEnd t            -> return []
-        | isSpace h            -> diffNext
-        | isIgnored meta h     -> diffNext
-        | isOpenBracket meta h -> skipRight meta t >>= rcondiffRec meta s
+      _ | isAtEnd t           -> return []
+        | isSpace h           -> diffNext
+        | isIgnored meta h    -> diffNext
+        | isOpenPunctuation h -> skipRight t >>= rcondiffRec meta s
         | name `isPrefixOf` tapeHead t -> do
           t' <- moveRightBy (length name) t
           if '(' == tapeAtHead t' then do
-            (argStr, t'') <- skipAndCopy meta t'
+            (argStr, t'') <- skipAndCopy t'
             args <- gatherArgs argStr
             if length args == length (sfParams x) then
               let fm = FactorMatch x (distance t'' t) args t'' in do
@@ -205,7 +219,7 @@ matchFactor meta fact@(SpecFactor name params) t
       return $ Just $ FactorMatch fact (length name) [] afterName
     else if tapeAtHead afterName /= '(' then return Nothing
     else do
-      (argStr, t') <- skipAndCopy meta t `amendE'` "matchFactor"
+      (argStr, t') <- skipAndCopy t `amendE'` "matchFactor"
       args <- gatherArgs argStr
       let d = distance t t' in
         if length args == length params then

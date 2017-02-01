@@ -1,19 +1,20 @@
 {-# LANGUAGE RankNTypes #-}
 module LSystem (
-  LSystem(..),
-  LSystemError(..),
-  ActionMap,
-  emptySystem,
-  addOption,
-  addFloatOption,
-  getOptions,
-  addMacro,
-  getMacros,
-  setAxiom,
-  setGrammar,
-  setIgnore
+    LSystem(..)
+  , LSystemError(..)
+  , ActionMap
+  , emptySystem
+  , addOption
+  , addFloatOption
+  , getOptions
+  , addMacro
+  , getMacros
+  , setAxiom
+  , setGrammar
+  , setIgnore
   ) where
 import Grammar
+import Metagrammar
 import Options
 import Turtle
 import Utils
