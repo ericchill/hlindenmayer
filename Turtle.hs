@@ -139,7 +139,7 @@ class Turt a where
 foldActions :: (Turt a) => [TAction a] -> a -> TurtleMonad a
 foldActions actions t =
   -- Strictness here saves about 50% memory in render phase.
-  t `seq` foldM doAction t actions
+  (t `seq` foldM doAction t actions) `amendE'` ("actions = " ++ show actions)
 
 
 data TAction a =
@@ -199,13 +199,13 @@ encodeAction s@(x:xs) =
   case () of
      _ | x == '['  -> encodeBranch xs
        -- Things with length dimension
-       | x `elem` "FGfp" -> do
+       | x `elem` "FGf!" -> do
            (arg, xs') <- encodeArg xs $ floatConst 1.0
            case x of
              'F'  -> return (xs', DrawLine arg)
              'G'  -> return (xs', DrawNoMark arg)
              'f'  -> return (xs', Move arg)
-             'p'  -> return (xs', SetPenWidth arg) -- default resets.
+             '!'  -> return (xs', SetPenWidth arg) -- default resets.
        -- Pen sizes grow and shrink by a scale factor.
        | x `elem` "'`\"" -> do
            (arg, xs') <- encodeArg xs $ FloatVar getPenScale
@@ -260,7 +260,7 @@ encodeMultiChar (x:xs) =
   
 encodeBranch :: (Turt a) => String -> ErrorM (String, TAction a)
 encodeBranch s = do
-  (rest, actions) <- encodeBranchRec s
+  (rest, actions) <- encodeActionsRec s
   if null actions then
     return (rest, Noop)
   else
@@ -292,12 +292,12 @@ encodeStringArg :: (Turt a) =>
   String -> StringArg a -> ErrorM (StringArg a, String)
 encodeStringArg [] def = return (def, [])
 encodeStringArg s@(x:xs) def
-  | x /= '('  = return (def, s)
-  | not (")" `isInfixOf` xs) =
-    throwE' "No close parenthesis for action argument."
-  | otherwise = do
-    (expr, remaining) <- balancedSplit s
-    return (StringConst expr, remaining)
+  | x /= '"'  = return (def, s)
+  | not ("\"" `isInfixOf` xs) =
+    throwE' "No close quote for action argument."
+  | otherwise =
+    let (expr, remaining) = stripSplit1 "\"" xs in
+      return (StringConst expr, remaining)
 {-
   fastFuncs['?']  = &Turtle::pushPoint;
   fastFuncs['#']  = &Turtle::popAndDrawLine;

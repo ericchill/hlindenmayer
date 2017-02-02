@@ -45,7 +45,7 @@ emptySystem meta = LSystem Map.empty Map.empty (newGrammar meta) []
 addFloatOption :: (Turt a) => LSystem a -> String -> String -> LSystemError a
 addFloatOption sys k v = do
   f <- mapErrorM $ readM v `amendE'` ("Adding float option " ++ k)
-  return sys { lOptions = Map.insert k (FloatOpt f) $ lOptions sys }
+  trace ("adding " ++ k ++ " = " ++ show f) $ return sys { lOptions = Map.insert k (FloatOpt f) $ lOptions sys }
 
 addOption :: (Turt a) => LSystem a -> String -> String -> LSystem a
 addOption sys k v = sys { lOptions = Map.insert k (StringOpt v) $ lOptions sys }

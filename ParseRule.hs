@@ -35,32 +35,18 @@ data ParsedProdFactor = ParsedProdFactor {
   } deriving (Show)
   
 languageDef :: LanguageDef st
-languageDef =
-  emptyDef { Token.reservedOpNames = [
-               "+", "-", "*", "/", "%", "^", "!",
-                 "<", "<=", "==", ">=", ">", "!=",
-                 "?", ":",
-                 "&&", "||", "~",
-                 "@"]
-           }
-
+languageDef = emptyDef
 
 type TokenParser st = Token.GenTokenParser String st Identity
 
 lexer :: TokenParser st
 lexer = Token.makeTokenParser languageDef
 
-braces      = Token.braces     lexer
-colon       = Token.colon      lexer
-comma       = Token.comma      lexer
 commaSep1   = Token.commaSep1  lexer
 float       = Token.float      lexer
 identifier  = Token.identifier lexer
 integer     = Token.integer    lexer
-lexeme      = Token.lexeme     lexer
 parens      = Token.parens     lexer
-reserved    = Token.reserved   lexer
-reservedOp  = Token.reservedOp lexer
 symbol      = Token.symbol     lexer
 whitespace  = Token.whiteSpace lexer
 
@@ -163,7 +149,7 @@ extendedOp = try $ do
 
 loneMinus = try $ do
   symbol "-"
-  notFollowedBy $ reservedOp ">"
+  notFollowedBy $ symbol ">"
   return "-"
 
 almostAnythingElse = try $ do

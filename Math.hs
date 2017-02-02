@@ -32,7 +32,7 @@ showFloat x =
   else 
     let tmpx = round $ x * 100 :: Int
         (intPart, fracPart) = quotRem tmpx 100
-    in show intPart ++ "." ++ show fracPart
+    in show intPart ++ "." ++ show (abs fracPart)
   
 rotateMatrix :: M33F -> V3F -> Double -> M33F
 rotateMatrix mat axis angle = mat !*! fromQuaternion (axisAngle axis angle)
