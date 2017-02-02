@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, DeriveDataTypeable #-}
 module Main where
 import Grammar
+import NumEval
 import Options
 import Parse
 import ParseRule
@@ -67,13 +68,14 @@ main = do
 -}
 derive :: (Turt a) => Mode -> LSystem a -> String -> Int -> ErrorIO String
 derive mode sys start 0 = return start
-derive mode sys start n = do
-  production <- produce (lGrammar sys) start `amendE'` ("derive " ++ show start)
-  derive mode sys ((
-    if mode == GrammarOpt then
-      trace ("step " ++ show n ++ ": " ++ show production)
-    else id) production)
-    (n - 1)
+derive mode sys start n =
+  let bindings = addOptionBindings (lOptions sys) defaultBindings in do
+    production <- produce bindings (lGrammar sys) start `amendE'`
+                  ("derive " ++ show start)
+    derive mode sys ((if mode == GrammarOpt then
+                         trace ("step " ++ show n ++ ": " ++ show production)
+                       else id) production)
+      (n - 1)
 
 growPlant :: (Turt a) => Mode -> Main -> LSystem a -> ErrorIO String
 growPlant mode opts sys = do

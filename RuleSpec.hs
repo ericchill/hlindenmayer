@@ -87,13 +87,12 @@ termMatchLength :: TermMatch -> Int
 termMatchLength (TermMatch _ factors) = sum $ map fmLength factors
 
 addContextBindings :: ContextMatch -> Bindings -> Bindings
-addContextBindings ctx bindings =
-  foldl (\b (k, v) ->
-           bindScalar k (Evaluator (\_ -> return v)) b) bindings $
-  join $ join $
-  map ((map (\fm -> zip (sfParams $ fmFactor fm ) (fmArgs fm)) . tmFactors)
-       . (\f -> f ctx))
-  [cmLeft, cmPred, cmRight]
+addContextBindings ctx =
+  addToBindings
+  (join $ join $
+   map ((map (\fm -> zip (sfParams $ fmFactor fm ) (fmArgs fm)) . tmFactors)
+        . (\f -> f ctx))
+   [cmLeft, cmPred, cmRight])
   
 --  fold join map(map(zip)) map 
 

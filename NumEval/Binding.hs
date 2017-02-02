@@ -1,13 +1,13 @@
 module NumEval.Binding (
-  EvalError,
-  Evaluator(..),
-  Bindings(..),
-  defaultBindings,
-  bindScalar,
-  getScalar,
-  getFunction,
-  module Control.Monad.Except
-  ) where
+  EvalError
+, Evaluator(..)
+, Bindings(..)
+, defaultBindings
+, addToBindings
+, bindScalar
+, getScalar
+, getFunction
+) where
 import Control.Monad.Except
 import Control.Monad.Identity
 import qualified Data.Map.Strict as Map
@@ -27,6 +27,10 @@ defaultBindings =
   foldl (\b (k, v) -> Map.insert k (Left $ Evaluator $ \_ -> return v) b)
   Map.empty
   [("false", 0), ("true", 1), ("pi", pi)]
+
+addToBindings :: [(String, Double)] -> Bindings -> Bindings
+addToBindings new bindings =
+  foldr (\(k, v) b -> bindScalar k (Evaluator (\_ -> return v)) b) bindings new
 
 bindScalar :: String -> Evaluator -> Bindings -> Bindings
 bindScalar name eval = Map.insert name (Left eval)

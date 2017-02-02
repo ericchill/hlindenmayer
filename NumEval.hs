@@ -10,6 +10,7 @@ import NumEval.Parser
 import NumEval.Primitive
 import NumEval.Syntax
 import NumEval.Translate
+import Control.Monad.Except
 import qualified Data.Map.Strict as Map
 
 eval :: String -> String -> EvalError Double

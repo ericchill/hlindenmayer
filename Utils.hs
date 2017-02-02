@@ -45,18 +45,20 @@ lNot = liftA not
 -- Return a random element from a list.
 randomElement :: [(Double, String)] -> ErrorIO String
 randomElement choices =
-  if length choices == 1 then return $ snd $ head choices  -- conserve entropy
-  else do
-    x <- liftIO (getStdRandom (randomR (0.0, 1.0)) :: IO Double)
-    let (_, s) = foldl (\(x', s') (p, s) ->
-                          if x' <= 0 then (x', s')
-                          else 
-                           let x'' = x' - p in
-                             if x'' <= 0 then (x'', Just s)
-                             else (x'', Nothing)) (x, Nothing) choices
-      in case s of
-        Just s -> return s
-        Nothing -> throwE' "Nothing in randomElement."
+  if length choices == 1 then (return . snd . head) choices -- conserve entropy
+  else
+    let max = sum $ map fst choices in
+      do
+        x <- liftIO (getStdRandom (randomR (0.0, max)) :: IO Double)
+        let (_, s) = foldl (\(x', s') (p, s) ->
+                              if x' <= 0 then (x', s')
+                              else 
+                                let x'' = x' - p in
+                                  if x'' <= 0 then (x'', Just s)
+                                  else (x'', Nothing)) (x, Nothing) choices
+          in case s of
+          Just s -> return s
+          Nothing -> throwE' "Nothing in randomElement."
 
 
 -- Read a number. If there is a decimal point without a leading digit,

@@ -69,3 +69,4 @@ setGrammar sys g = sys { lGrammar = g }
 
 setIgnore :: (Turt a) => LSystem a -> String -> LSystem a
 setIgnore sys x = sys { lGrammar = gSetIgnore x $ lGrammar sys }
+

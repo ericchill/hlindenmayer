@@ -1,18 +1,20 @@
 module Options (
-  OptionMap,
-  OptionValue(..),
-  FloatArg(..),
-  floatConst,
-  getFloatArg,
-  StringArg(..),
-  stringConst,
-  getStringArg,
-  getFloatOption,
-  getIntOption,
-  getStringOption,
-  readM,
+    OptionMap
+  , OptionValue(..)
+  , FloatArg(..)
+  , floatConst
+  , getFloatArg
+  , StringArg(..)
+  , stringConst
+  , getStringArg
+  , getFloatOption
+  , getIntOption
+  , getStringOption
+  , readM
+  , addOptionBindings
   ) where
 import Error
+import NumEval
 import Utils
 import qualified Data.Map.Strict as Map
 --import Text.Read
@@ -79,3 +81,15 @@ getStringOption k def map =
       FloatOpt x    -> return $ show x
       IntOpt x      -> return $ show x
     Nothing  -> return def
+
+addOptionBindings :: OptionMap -> Bindings -> Bindings
+addOptionBindings map bindings =
+  foldr (\k b ->
+           case Map.lookup k map of
+             Just x -> case x of
+               FloatOpt f -> bindScalar k (Evaluator (\_ -> return f)) b
+               IntOpt i   -> bindScalar k (Evaluator (
+                                              \_ -> return $ fromIntegral i)) b
+               _ -> b
+             Nothing -> b) bindings $ Map.keys map
+

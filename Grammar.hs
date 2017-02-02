@@ -37,20 +37,20 @@ instance Show Grammar where
 newGrammar :: Metagrammar -> Grammar
 newGrammar meta = Grammar meta Map.empty []
 
-produce :: Grammar -> String -> ErrorIO String
-produce g s = produceRec g (newTape s)
+produce :: Bindings -> Grammar -> String -> ErrorIO String
+produce b g s = produceRec b g (newTape s)
 
-produceRec :: Grammar -> Tape -> ErrorIO String
-produceRec g t
+produceRec :: Bindings -> Grammar -> Tape -> ErrorIO String
+produceRec b g t
   | isAtEnd t = return []
   | otherwise = do
-      (t', choices) <- t `seq` mapErrorM $ produceOne g t
+      (t', choices) <- t `seq` mapErrorM $ produceOne b g t
       chosen <- randomElement choices
-      prod' <- produceRec g t'
+      prod' <- produceRec b g t'
       return $ chosen ++ prod'
 
-produceOne :: Grammar -> Tape -> GramError
-produceOne g t
+produceOne :: Bindings -> Grammar -> Tape -> GramError
+produceOne b g t
   | isAtEnd t      = return (t, [])
   | isBreak meta x = produceBreak t
   | isSpace x      = justCopy t
@@ -60,7 +60,7 @@ produceOne g t
         Just (m, rule) -> do
           prods <- applyRule m rule t
           if Prelude.null prods then justCopy t
-          else doProduction meta (head prods) t
+          else doProduction meta b (head prods) t
         Nothing -> justCopy t
   where meta = gMeta g
         x = tapeAtHead t
@@ -73,17 +73,17 @@ lookupRule (Grammar meta rules keys) t = do
       return $ Just (m, fromJust $ Map.lookup spec rules)
     _ -> return Nothing
 
-doProduction :: Metagrammar -> RuleApplication -> Tape -> GramError
-doProduction meta appl t =
+doProduction :: Metagrammar -> Bindings -> RuleApplication -> Tape -> GramError
+doProduction meta bindings appl t =
   let matchedLen = termMatchLength $ cmPred $ raContext appl
-      bindings = addContextBindings (raContext appl) defaultBindings
+      bindings' = addContextBindings (raContext appl) bindings
   in do
       t' <- moveRightBy matchedLen t
-      metCond <- filterM (testCondition bindings) (raProds appl)
+      metCond <- filterM (testCondition bindings') (raProds appl)
       if null metCond then justCopy t
       else do
-        probs <- mapM (evalProbability bindings) metCond
-        prodStrs <- mapM (renderProduction bindings) metCond
+        probs <- mapM (evalProbability bindings') metCond
+        prodStrs <- mapM (renderProduction bindings') metCond
         return (t', zip probs prodStrs)
 
 renderProduction :: Bindings -> Production -> ErrorM String
