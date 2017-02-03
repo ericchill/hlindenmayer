@@ -20,10 +20,10 @@ import qualified Text.ParserCombinators.Parsec.Token as Token
 
 languageDef :: LanguageDef st
 languageDef =
-  emptyDef { Token.reservedOpNames = ["+", "-", "*", "/", "%", "^", "!",
+  emptyDef { Token.reservedOpNames = ["+", "-", "*", "/", "%", "^",
                                       "<", "<=", "==", ">=", ">", "!=",
                                       "?", ":",
-                                      "&&", "||", "~",
+                                      "&", "|", "!",
                                       "->"]
            }
 

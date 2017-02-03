@@ -13,8 +13,7 @@ data NumExpr = Constant Double
              | FuncCall Function [NumExpr]
              deriving (Show)
 
-data UnaryOp = Factorial
-             | Negate
+data UnaryOp = Negate
              | Not
              deriving (Eq, Show)
 

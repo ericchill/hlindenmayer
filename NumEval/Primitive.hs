@@ -34,7 +34,7 @@ lookupUnary op =
 
 
 unaryFuncs :: [(UnaryOp, Double -> Double)]
-unaryFuncs = [ (Negate, negate), (Factorial, ffactorial), (Not, notFunc) ]
+unaryFuncs = [ (Negate, negate), (Not, notFunc) ]
 
 builtInFuncs :: [(String, Double -> Double)]
 builtInFuncs = [
@@ -45,7 +45,7 @@ builtInFuncs = [
   ("asin", asin), ("acos", acos), ("atan", atan),
   ("sinh", sinh), ("cosh", cosh), ("tanh", tanh),
   ("asinh", asinh), ("acosh", acosh), ("atanh", atanh),
-  ("gamma", gamma) ]
+  ("factorial", ffactorial), ("gamma", gamma) ]
 
 builtInFuncs2 :: [(String, Double -> Double -> Double)]
 builtInFuncs2 = [

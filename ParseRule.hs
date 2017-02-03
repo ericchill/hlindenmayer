@@ -83,7 +83,7 @@ ruleSpec meta = do
 ruleCondition = condExpr <|> nullCond
 
 condExpr = try $ do
-  cond <- between (symbol ",") (symbol "->") NumEval.Parser.expr
+  cond <- between (symbol ";") (symbol "->") NumEval.Parser.expr
   return $ Just cond
 
 nullCond = do
@@ -167,5 +167,5 @@ loneMinus = try $ do
   return "-"
 
 almostAnythingElse = try $ do
-  c <- noneOf "-:<>,"
+  c <- noneOf "-:<>;"
   return [c]
