@@ -1,6 +1,7 @@
 module ParseRule (
     testParse
   , parseRule
+  , Expr(..)
   , ParsedRule(..)
   , ParsedProduction(..)
   , ParsedProdFactor(..)
@@ -31,9 +32,11 @@ data ParsedProduction = ParsedProduction {
   
 data ParsedProdFactor = ParsedProdFactor {
      ppfName     :: String
-  ,  ppfArgExprs :: [NumExpr]
+  ,  ppfArgExprs :: [ParseRule.Expr]
   } deriving (Show)
-  
+
+data Expr = Numeric NumExpr | Stringy String deriving (Show)
+
 languageDef :: LanguageDef st
 languageDef = emptyDef
 
@@ -42,13 +45,14 @@ type TokenParser st = Token.GenTokenParser String st Identity
 lexer :: TokenParser st
 lexer = Token.makeTokenParser languageDef
 
-commaSep1   = Token.commaSep1  lexer
-float       = Token.float      lexer
-identifier  = Token.identifier lexer
-integer     = Token.integer    lexer
-parens      = Token.parens     lexer
-symbol      = Token.symbol     lexer
-whitespace  = Token.whiteSpace lexer
+commaSep1     = Token.commaSep1     lexer
+float         = Token.float         lexer
+identifier    = Token.identifier    lexer
+integer       = Token.integer       lexer
+parens        = Token.parens        lexer
+symbol        = Token.symbol        lexer
+stringLiteral = Token.stringLiteral lexer
+whitespace    = Token.whiteSpace    lexer
 
 
 testParse :: Metagrammar -> String -> String -> ErrorM ParsedRule
@@ -138,8 +142,18 @@ prodProbability = try $ do
 
 prodFactor = do
   name <- turtleOp
-  exprs <- option [] $ parens $ commaSep1 NumEval.Parser.expr
+  exprs <- option [] $ parens $ commaSep1 ParseRule.expr
   return $ ParsedProdFactor name exprs
+
+expr =
+  try (do {
+    e <- NumEval.Parser.expr;
+    return $ Numeric e
+    })
+  <|> try (do {
+          e <- stringLiteral;
+          return $ Stringy e
+          })
 
 turtleOp = try (extendedOp <|> loneMinus <|> almostAnythingElse)
 

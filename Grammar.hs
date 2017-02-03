@@ -88,19 +88,10 @@ doProduction meta bindings appl t =
 
 renderProduction :: Bindings -> Production -> ErrorM String
 renderProduction b p =
-  foldM (\acc p -> do
-            facStr <- renderFactor b p
+  mapLeft $ foldM (\acc p -> do
+            facStr <- evalFactor b p
             return $ acc ++ facStr)
   "" (pProduction p)
-
-renderFactor :: Bindings -> ProdFactor -> ErrorM String
-renderFactor b f = do
-  argVals <- mapM (\e -> mapErrorM $ mapLeft $ runEvaluator e b) (pfFuncs f)
-  let argStrs = map showFloat argVals
-      allArgs = intercalate "," argStrs
-    in
-    if null argVals then return $ pfName f
-    else return $ pfName f ++ "(" ++ allArgs ++ ")"
 
 produceBreak :: Tape -> GramError
 produceBreak t = do

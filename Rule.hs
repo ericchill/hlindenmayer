@@ -8,6 +8,7 @@ module Rule (
   , testCondition
   , evalProbability
   , evalProduction
+  , evalFactor
   , addSuccessor
 ) where
 import Error
@@ -31,7 +32,7 @@ type RuleItem = (RuleSpec, [Production])
   
 data ProdFactor = ProdFactor {
     pfName  :: String
-  , pfFuncs :: [Evaluator]
+  , pfFuncs :: [Either StrEvaluator Evaluator]
   } 
 
 data RuleApplication  = RuleApplication {
@@ -64,14 +65,14 @@ testCondition :: Bindings -> Production -> ErrorM Bool
 testCondition bindings prod =
   case pCond prod of
     Just p -> do
-      x <- (mapLeft $ runEvaluator p bindings) `amendE'` "testCondition"
+      x <- mapLeft (runEvaluator p bindings) `amendE'` "testCondition"
       return (x /= 0)
     _ -> return False
 
 evalProbability :: Bindings -> Production -> ErrorM Double
 evalProbability bindings prod =
   case pProbability prod of
-    Just p -> (mapLeft $ runEvaluator p bindings) `amendE'` "evalProbability"
+    Just p -> mapLeft (runEvaluator p bindings) `amendE'` "evalProbability"
     _      -> return 1.0
 
 evalProduction :: Bindings -> Production -> EvalError (Double, String)
@@ -87,10 +88,17 @@ evalFactor :: Bindings -> ProdFactor -> EvalError String
 evalFactor bindings (ProdFactor name args) =
   if null args then return name
   else do
-    vals <- mapM (`runEvaluator` bindings) args
-    let strs = map showFloat vals
-      in
-      return $ name ++ "(" ++ intercalate "," strs ++ ")"
+    strs <- mapM
+              (\arg -> case arg of
+                  Left stringy -> do
+                    x <- stringy `runStrEvaluator` bindings
+                    return $ "\"" ++ x ++ "\""
+                  Right numeric -> do
+                    x <- numeric `runEvaluator` bindings
+                    return $ showFloat x
+      )
+      args
+    return $ name ++ "(" ++ intercalate "," strs ++ ")"
 
 addSuccessor :: RuleSpec -> Production -> LRule -> LRule
 addSuccessor spec prod rule@(LRule rules) =

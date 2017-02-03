@@ -92,7 +92,13 @@ translateProduction parsed = do
 
 translateFactor :: ParsedProdFactor -> ErrorM ProdFactor
 translateFactor parsed = do
-  exprs <- mapLeft $ mapM translate (ppfArgExprs parsed)
+  exprs <- mapLeft $ mapM
+    (\f -> case f of
+        Numeric expr -> do
+          t <- translate expr
+          return $ Right t
+        Stringy expr -> return $ Left $ StrEvaluator (\_ -> return expr)) $
+    ppfArgExprs parsed
   return $ ProdFactor (ppfName parsed) exprs
 
 translateMaybeNumExpr :: Maybe NumExpr -> Double -> ErrorM Evaluator
