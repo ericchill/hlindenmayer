@@ -46,6 +46,7 @@ executable hlindenmayer
                      , cmdlib >= 0.3.6
                      , containers >=0.5 && <0.6
                      , gamma >=0.9.0.2 && <0.10
+                     , ghc >= 7.10
                      , hxt >=9.3 && <9.4
                      , lens >= 4.13
                      , linear >= 1.20

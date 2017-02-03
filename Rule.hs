@@ -64,14 +64,14 @@ testCondition :: Bindings -> Production -> ErrorM Bool
 testCondition bindings prod =
   case pCond prod of
     Just p -> do
-      x <- mapLeft $ runEvaluator p bindings
+      x <- (mapLeft $ runEvaluator p bindings) `amendE'` "testCondition"
       return (x /= 0)
     _ -> return False
 
 evalProbability :: Bindings -> Production -> ErrorM Double
 evalProbability bindings prod =
   case pProbability prod of
-    Just p -> mapErrorM $ mapLeft $ runEvaluator p bindings
+    Just p -> (mapLeft $ runEvaluator p bindings) `amendE'` "evalProbability"
     _      -> return 1.0
 
 evalProduction :: Bindings -> Production -> EvalError (Double, String)

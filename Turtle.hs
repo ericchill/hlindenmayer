@@ -260,7 +260,7 @@ encodeMultiChar (x:xs) =
   
 encodeBranch :: (Turt a) => String -> ErrorM (String, TAction a)
 encodeBranch s = do
-  (rest, actions) <- encodeActionsRec s
+  (rest, actions) <- encodeBranchRec s
   if null actions then
     return (rest, Noop)
   else
@@ -274,7 +274,10 @@ encodeBranchRec s@(x:xs) =
   else do
     (rest, action) <- encodeAction s `amendE'` "encodeBranchRec"
     (rest', actions) <- encodeBranchRec rest
-    return (rest', action : actions)
+    if isNoop action then
+      return (rest', actions)
+    else
+      return (rest', action : actions)
 
 encodeArg :: (Turt a) => String -> FloatArg a -> ErrorM (FloatArg a, String)
 encodeArg [] def = return (def, "")
@@ -292,12 +295,13 @@ encodeStringArg :: (Turt a) =>
   String -> StringArg a -> ErrorM (StringArg a, String)
 encodeStringArg [] def = return (def, [])
 encodeStringArg s@(x:xs) def
-  | x /= '"'  = return (def, s)
-  | not ("\"" `isInfixOf` xs) =
-    throwE' "No close quote for action argument."
-  | otherwise =
-    let (expr, remaining) = stripSplit1 "\"" xs in
-      return (StringConst expr, remaining)
+  | x /= '('  = return (def, s)
+  | not (")" `isInfixOf` xs) =
+    throwE' "No close parenthesis for action string argument."
+  | otherwise = do
+    (expr, remaining) <- balancedSplit xs
+    return (StringConst (stripStr "\"" expr), remaining)
+
 {-
   fastFuncs['?']  = &Turtle::pushPoint;
   fastFuncs['#']  = &Turtle::popAndDrawLine;

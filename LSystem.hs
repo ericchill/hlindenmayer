@@ -44,8 +44,8 @@ emptySystem meta = LSystem Map.empty Map.empty (newGrammar meta) []
 
 addFloatOption :: (Turt a) => LSystem a -> String -> String -> LSystemError a
 addFloatOption sys k v = do
-  f <- mapErrorM $ readM v `amendE'` ("Adding float option " ++ k)
-  trace ("adding " ++ k ++ " = " ++ show f) $ return sys { lOptions = Map.insert k (FloatOpt f) $ lOptions sys }
+  f <- mapErrorM $ readM v `amendE'` ("addFloatOption " ++ k)
+  return sys { lOptions = Map.insert k (FloatOpt f) $ lOptions sys }
 
 addOption :: (Turt a) => LSystem a -> String -> String -> LSystem a
 addOption sys k v = sys { lOptions = Map.insert k (StringOpt v) $ lOptions sys }
@@ -58,7 +58,7 @@ getOptions = lOptions
 
 addMacro :: (Turt a) => LSystem a -> String -> String -> LSystemError a
 addMacro sys k v = do
-  actions <- encodeActions v `amendE'` ("addMacro: " ++ k ++ "=" ++ show v)
+  actions <- encodeActions v `amendE'` ("addMacro " ++ k ++ "=" ++ show v)
   return $ sys { lMacros = Map.insert k actions $ lMacros sys }
 
 setAxiom :: (Turt a) => LSystem a -> String -> LSystem a

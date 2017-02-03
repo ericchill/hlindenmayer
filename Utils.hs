@@ -4,6 +4,7 @@ module Utils (
   (&&&&), (||||), lNot,
   randomElement,
   readM,
+  stripStr,
   stripSplit1,
   balancedSplit,
   isOpenPunctuation,
@@ -16,10 +17,11 @@ module Utils (
 import Error
 import Control.Applicative
 import Data.Function (on)
-import Data.List (isPrefixOf, sortBy)
+import Data.List (isPrefixOf, isSuffixOf, sortBy)
 import Data.List.Utils
 import Data.String.Utils
 import System.Random
+import Util
 
 -- A monadic case control structure
 caseM :: [(ErrorM Bool, ErrorM a)] -> ErrorM a -> ErrorM a
@@ -70,10 +72,20 @@ readM a@(a0:an) =
         '.' -> "0" ++ a
         _   -> a
   in
-  case maybeRead a' of
+  case Util.maybeRead a' of
     Just b  -> return  b
     Nothing -> throwE' (a ++ " can't be parsed as desired type.")
 
+
+-- Remove given string from the ends of the other
+stripStr :: String -> String -> String
+stripStr sub str =
+  let len = length sub
+      after = if sub `isPrefixOf` str then drop len str
+        else str
+      rest = if sub `isSuffixOf` str then dropTail len after
+        else after
+  in strip rest
 
 -- Split a string at the delimiter and strip both halves of the result.
 stripSplit1 :: String -> String -> (String, String)

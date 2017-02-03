@@ -28,11 +28,8 @@ showV3 (V3 x y z) =
 
 showFloat :: Double -> String
 showFloat x =
-  if abs (x - (fromInteger . round) x) < 0.01 then show $ round x
-  else 
-    let tmpx = round $ x * 100 :: Int
-        (intPart, fracPart) = quotRem tmpx 100
-    in show intPart ++ "." ++ show (abs fracPart)
+  if abs (x - (fromInteger . round) x) < 0.001 then show $ round x
+  else printf "%0.3f" x
   
 rotateMatrix :: M33F -> V3F -> Double -> M33F
 rotateMatrix mat axis angle = mat !*! fromQuaternion (axisAngle axis angle)

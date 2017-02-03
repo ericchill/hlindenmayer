@@ -66,7 +66,7 @@ data ContextMatch = ContextMatch {
     cmLeft  :: TermMatch
   , cmPred  :: TermMatch
   , cmRight :: TermMatch
-  }
+  } deriving (Show)
 
 data TermMatch = TermMatch {
     tmTerm    :: SpecTerm
@@ -88,11 +88,13 @@ termMatchLength (TermMatch _ factors) = sum $ map fmLength factors
 
 addContextBindings :: ContextMatch -> Bindings -> Bindings
 addContextBindings ctx =
-  addToBindings
-  (join $ join $
-   map ((map (\fm -> zip (sfParams $ fmFactor fm ) (fmArgs fm)) . tmFactors)
-        . (\f -> f ctx))
-   [cmLeft, cmPred, cmRight])
+  let
+    factors = join $ map (\f -> (tmFactors . f) ctx) [cmLeft, cmPred, cmRight]
+    kvPairs = join $
+      map (\fm -> zip (sfParams $ fmFactor fm) (fmArgs fm)) factors
+  in
+    addToBindings kvPairs
+    
   
 --  fold join map(map(zip)) map 
 
@@ -106,7 +108,7 @@ matchContext pred spec@(RuleSpec meta l (SpecTerm p) r) t = do
       case rightMatch of
         Nothing -> return Nothing
         Just rm -> return $ Just $ ContextMatch lm pred rm
-
+  
 -- Check left context
 lcondiff :: Metagrammar -> SpecTerm -> Tape -> ErrorM (Maybe TermMatch)
 lcondiff _ SpecWild _ = return $ Just $ TermMatch SpecWild []
@@ -222,8 +224,7 @@ matchFactor meta fact@(SpecFactor name params) t
       args <- gatherArgs argStr
       let d = distance t t' in
         if length args == length params then
-          return $ Just $
-            FactorMatch fact (distance t' t) args t'
+          return $ Just $ FactorMatch fact (distance t' t) args t'
         else return Nothing
   | otherwise = return Nothing
 

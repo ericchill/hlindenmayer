@@ -53,4 +53,5 @@ getBinding :: String -> Bindings -> EvalError BoundValue
 getBinding name bindings =
   case Map.lookup name bindings of
     Just x  -> return x
-    Nothing -> throwError $ show name ++ " is not bound."
+    Nothing -> throwError $
+      show name ++ " is not bound. Keys are " ++ (show $ Map.keys bindings)

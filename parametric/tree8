@@ -2,32 +2,39 @@ delta: 22.5
 iterate: 18
 //save: tree8.turtle.3
 define: P [[+F(2)~L][-F(2)~L][^F(2)~L][&F(2)~L]]
-define: L [T"Leaf"!(0.1)-F(0.25)+F(0.25)+F(0.25)-|-F(0.25)+F(0.25)+F(0.25)]
+define: L [T("Leaf")!(0.1)-F(0.25)+F(0.25)+F(0.25)-|-F(0.25)+F(0.25)+F(0.25)]
 define: K [$^^^^!(0)-F+F+F-|-F+F+F]
 //define: M [!(0)^^FF[+&&~L][-&&~L]&&~L]
 //define: L [!(0)[+&F(0.25)][-&F(0.25)]^F[+&F(0.25)][-&F(0.25)]^F[+&F(0.25)][-&F(0.25)]^F[+&F(0.25)][-&F(0.25)]^F[+&F(0.25)][-&F(0.25)]^F^F[+&F(0.25)][-&F(0.25)]^F(0.25)]
 //define: M [!(0)[+&~L][-&~L]^~L[+&~L][-&~L]^F[+&~L][-&~L]^F[+&~L][-&~L]^F[+&~L][-&~L]^F^F[+&~L][-&~L]^F(0.25)]
 stepRatio: 0.8
-axiom: U0
-U0 --> T"Wood"`(1)BF(1)X
+axiom: T("Wood")U0
+U0 -> `(1)BF(1)X
 
 `(x) -> `(x * 1.01)
 
 BF(x) -> BF(x * 16/15)
 
 // define branching pattern, direction, and growth speed
-X -> GF(1)'[!(0.5)F~P][-X]c[+X]'~P
-X -> GF(1)'[!(0.5)F~P][-X]c[+X]'~P
-X -> GF(1)'[!(0.5)F~P][+X]c[-X]'~P
-X -> GF(1)'[!(0.5)F~P][+X]c[-X]'~P
-//X -> GF(1)'[!(0.5)F~P][+X]c'~P
-//X -> GF(1)'[!(0.5)F~P][+X]c'~P
-//X -> GF(1)'[!(0.5)F~P][-X]c'~P
-//X -> GF(1)'[!(0.5)F~P][-X]c'~P
-//X -> GF(1)'[!(0.5)F~P]Xc'~P
-//X -> GF(1)'[!(0.5)F~P]Xc'~P
+X -> GF(1)'C[-X]c[+X]'~P : 0.2
+X -> GF(1)'/C[-X]c[+X]'~P : 0.2
+X -> GF(1)'C[+X]c[-X]'~P : 0.2
+X -> GF(1)'/C[+X]c[-X]'~P : 0.2
+X -> GF(1)'C[+X]c'~P : 0.05
+X -> GF(1)'C[+X]c'~P : 0.05
+X -> GF(1)'C[-X]c'~P : 0.05
+X -> GF(1)'C[-X]c'~P : 0.05
+//X -> GF(1)'CXc'~P
+//X -> GF(1)'Cc'~P
+
+//c -> ///
+//c -> \\\
+//c ->
 
 GF(x) --> GF(x * 16/15)
+
+C -> C : 4/5
+C -> [!(0.5)F~P] : 1/5
 
 !(x)F~P -> !(x)F~P : 2/3
 !(x)F~P -> ///X : 1/6
